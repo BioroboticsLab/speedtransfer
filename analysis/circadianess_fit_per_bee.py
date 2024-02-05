@@ -1,0 +1,162 @@
+from slurmhelper import SLURMJob
+import datetime
+import pytz
+from sshtunnel import SSHTunnelForwarder
+
+import bb_behavior.db.base
+import bb_behavior.db
+
+"""
+This is a script for creating a dataframe of the parameters of a cosinor fit of the velocity per bee for a time window 
+of 3 consecutive days for the period 01.08.-25.08.2016 and  20.08-14.09.2019. For faster computation the job is 
+divided that one bee is one node in the slurmhelper job array.
+"""
+
+
+def generate_jobs_2016():
+    with SSHTunnelForwarder(
+        "bommel.imp.fu-berlin.de",
+        ssh_username="dbreader",
+        ssh_password="dbreaderpw",
+        remote_bind_address=("127.0.0.1", 5432),
+    ) as server:
+        # server settings
+        bb_behavior.db.base.server_address = "localhost:{}".format(
+            server.local_bind_port
+        )
+        bb_behavior.db.set_season_berlin_2016()
+        bb_behavior.db.base.beesbook_season_config[
+            "bb_alive_bees"
+        ] = "alive_bees_2016_bayesian"
+
+        # set dates
+        from_dt = datetime.datetime(2016, 8, 1, tzinfo=pytz.UTC)
+        to_dt = datetime.datetime(2016, 8, 25, tzinfo=pytz.UTC)
+
+        # get alive bees
+        alive_bees = bb_behavior.db.get_alive_bees(from_dt, to_dt)
+
+        # velocity path
+        velocity_df_path = (
+            "~/../../scratch/weronik22/data/2016/velocities_1_8-25_8_2016"
+        )
+
+        # iterate through all bees
+        for bee_id in alive_bees:
+            for second in [60, 120, 300, 600, 3600, 10800, 21600]:
+                yield dict(
+                    bee_id=bee_id,
+                    from_dt=from_dt,
+                    to_dt=to_dt,
+                    velocity_df_path=velocity_df_path,
+                    second=second,
+                )
+
+
+def generate_jobs_2019():
+    # server settings
+    bb_behavior.db.base.server_address = "beequel.imp.fu-berlin.de:5432"
+    bb_behavior.db.base.set_season_berlin_2019()
+    bb_behavior.db.base.beesbook_season_config[
+        "bb_detections"
+    ] = "bb_detections_2019_berlin_orientationfix"
+
+    # set dates
+    from_dt = datetime.datetime(2019, 8, 20, tzinfo=pytz.UTC)
+    to_dt = datetime.datetime(2019, 9, 14, tzinfo=pytz.UTC)
+
+    # get alive bees
+    alive_bees = bb_behavior.db.get_alive_bees(from_dt, to_dt)
+
+    # velocity path
+    velocity_df_path = "~/../../scratch/weronik22/data/2019/velocities_20_8-14_9_2019"
+
+    # iterate through all bees
+    for bee_id in alive_bees:
+        for second in [60, 120, 300, 600, 3600, 10800, 21600]:
+            yield dict(
+                bee_id=bee_id,
+                from_dt=from_dt,
+                to_dt=to_dt,
+                velocity_df_path=velocity_df_path,
+                second=second,
+            )
+
+
+def run_job_2019(
+    bee_id=None, from_dt=None, to_dt=None, velocity_df_path=None, second=None
+):
+    import bb_behavior.db.base
+    import bb_behavior.db
+    import bb_rhythm.rhythm
+
+    # server settings
+    bb_behavior.db.base.server_address = "beequel.imp.fu-berlin.de:5432"
+    bb_behavior.db.base.set_season_berlin_2019()
+    bb_behavior.db.base.beesbook_season_config[
+        "bb_detections"
+    ] = "bb_detections_2019_berlin_orientationfix"
+
+    # create dataframe of results of cosinor fit for each day in time period
+    cosinor_df = bb_rhythm.rhythm.create_cosinor_df_per_bee_time_period(
+        bee_id=bee_id,
+        to_dt=to_dt,
+        from_dt=from_dt,
+        velocity_df_path=velocity_df_path,
+        second=second,
+    )
+    return cosinor_df
+
+
+def run_job_2016(
+    bee_id=None, from_dt=None, to_dt=None, velocity_df_path=None, second=None
+):
+    from sshtunnel import SSHTunnelForwarder
+
+    import bb_behavior.db.base
+    import bb_behavior.db
+    import bb_rhythm.rhythm
+
+    with SSHTunnelForwarder(
+        "bommel.imp.fu-berlin.de",
+        ssh_username="dbreader",
+        ssh_password="dbreaderpw",
+        remote_bind_address=("127.0.0.1", 5432),
+    ) as server:
+        # server settings
+        bb_behavior.db.base.server_address = "localhost:{}".format(
+            server.local_bind_port
+        )
+        bb_behavior.db.set_season_berlin_2016()
+        bb_behavior.db.base.beesbook_season_config[
+            "bb_alive_bees"
+        ] = "alive_bees_2016_bayesian"
+
+        # create dataframe of results of cosinor fit for each day in time period
+        cosinor_df = bb_rhythm.rhythm.create_cosinor_df_per_bee_time_period(
+            bee_id=bee_id,
+            to_dt=to_dt,
+            from_dt=from_dt,
+            velocity_df_path=velocity_df_path,
+            second=second,
+        )
+        return cosinor_df
+
+
+# create job
+job = SLURMJob("2016_circadian_velocities_cosinor_median", "/scratch/juliam98/")
+job.map(run_job_2016, generate_jobs_2016())
+
+# set job parameters
+job.qos = "standard"
+job.partition = "main,scavenger"
+job.max_memory = "{}GB".format(2)
+job.n_cpus = 1
+job.max_job_array_size = 5000
+job.time_limit = datetime.timedelta(minutes=60)
+job.concurrent_job_limit = 100
+job.custom_preamble = "#SBATCH --exclude=g[013-015],b[001-004],c[003-004],g[009-015]"
+job.exports = "OMP_NUM_THREADS=2,MKL_NUM_THREADS=2"
+
+# run job
+job()
