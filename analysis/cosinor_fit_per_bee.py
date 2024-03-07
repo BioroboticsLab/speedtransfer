@@ -20,6 +20,7 @@ python cosinor_fit_per_bee_concat.py
 VELOCITY_DF_PATH_2016 = "../data/2016/velocities_1_8-25_8_2016"
 VELOCITY_DF_PATH_2019 = "../data/2019/velocities_20_8-14_9_2019"
 
+
 def generate_jobs_2016():
     with SSHTunnelForwarder(
         "bommel.imp.fu-berlin.de",

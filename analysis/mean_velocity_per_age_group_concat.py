@@ -23,6 +23,4 @@ for kwarg, result in job.items():
 result_df = result_df.groupby(["time", "age"])["velocity"].mean().reset_index()
 
 # save df
-result_df.to_pickle(
-    MEAN_VELOCITY_DF_PATH_2016
-)
+result_df.to_pickle(MEAN_VELOCITY_DF_PATH_2016)

@@ -22,7 +22,6 @@ VELOCITY_DF_PATH_2019 = "../data/2019/velocities_20_8-14_9_2019"
 def run_job_2016(dt_from=None, dt_to=None, cam_ids=None):
     # imports for run job
     from sshtunnel import SSHTunnelForwarder
-    import pytz
 
     import bb_behavior.db
     import bb_rhythm.interactions
@@ -50,24 +49,28 @@ def run_job_2016(dt_from=None, dt_to=None, cam_ids=None):
             cursor = db.cursor()
 
             # fetch all interactions in frames of cams in time window
-            interactions_per_frame = bb_rhythm.interactions.fetch_interactions_per_frame(cam_ids, cursor, dt_from, dt_to)
+            interactions_per_frame = bb_rhythm.interactions.fetch_interactions_per_frame(
+                cam_ids, cursor, dt_from, dt_to
+            )
             if not interactions_per_frame:
                 return {None: dict(error="No frames fetched..")}
 
             # cluster per frame detected interactions per time in interaction events
-            interactions = bb_rhythm.interactions.get_all_interactions_over_time(interactions_per_frame)
+            interactions = bb_rhythm.interactions.get_all_interactions_over_time(
+                interactions_per_frame
+            )
             if not interactions:
                 return {None: dict(error="No events found..")}
 
             # calculate per interaction post-interaction velocity changes
-            bb_rhythm.interactions.add_post_interaction_velocity_change(interactions, velocity_df_path=VELOCITY_DF_PATH_2016)
+            bb_rhythm.interactions.add_post_interaction_velocity_change(
+                interactions, velocity_df_path=VELOCITY_DF_PATH_2016
+            )
             return interactions
 
 
 def run_job_2019(dt_from=None, dt_to=None, cam_ids=None):
     # imports for run job
-    import pytz
-
     import bb_behavior.db
     import bb_rhythm.interactions
 
@@ -84,18 +87,23 @@ def run_job_2019(dt_from=None, dt_to=None, cam_ids=None):
     ) as db:
         cursor = db.cursor()
         # fetch all interactions in frames of cams in time window
-        interactions_per_frame = bb_rhythm.interactions.fetch_interactions_per_frame(cam_ids, cursor, dt_from, dt_to)
+        interactions_per_frame = bb_rhythm.interactions.fetch_interactions_per_frame(
+            cam_ids, cursor, dt_from, dt_to
+        )
         if not interactions_per_frame:
             return {None: dict(error="No frames fetched..")}
 
         # cluster per frame detected interactions per time in interaction events
-        interactions = bb_rhythm.interactions.get_all_interactions_over_time(interactions_per_frame)
+        interactions = bb_rhythm.interactions.get_all_interactions_over_time(
+            interactions_per_frame
+        )
         if not interactions:
             return {None: dict(error="No events found..")}
 
         # calculate per interaction post-interaction velocity changes
-        bb_rhythm.interactions.add_post_interaction_velocity_change(interactions,
-                                                                    velocity_df_path=VELOCITY_DF_PATH_2019)
+        bb_rhythm.interactions.add_post_interaction_velocity_change(
+            interactions, velocity_df_path=VELOCITY_DF_PATH_2019
+        )
         return interactions
 
 
