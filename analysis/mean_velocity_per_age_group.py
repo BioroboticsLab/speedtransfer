@@ -60,14 +60,12 @@ def run_job_2016(bee_id=None, dt_from=None, dt_to=None, velocity_df_path=None):
             application_name="mean_velocities"
         ) as db:
             cursor = db.cursor()
-            grouped_velocities = (
-                bb_rhythm.rhythm.create_10_min_mean_velocity_df_per_bee(
-                    bee_id=bee_id,
-                    dt_from=dt_from,
-                    dt_to=dt_to,
-                    velocity_df_path=velocity_df_path,
-                    cursor=cursor,
-                )
+            grouped_velocities = bb_rhythm.rhythm.create_10_min_mean_velocity_df_per_bee(
+                bee_id=bee_id,
+                dt_from=dt_from,
+                dt_to=dt_to,
+                velocity_df_path=velocity_df_path,
+                cursor=cursor,
             )
             return grouped_velocities
 
