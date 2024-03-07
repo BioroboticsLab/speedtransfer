@@ -10,8 +10,15 @@ import bb_behavior.db
 This is a script for creating a dataframe of the parameters of a cosinor fit of the velocity per bee for a time window 
 of 3 consecutive days for the period 01.08.-25.08.2016 and  20.08-14.09.2019. For faster computation the job is 
 divided that one bee is one node in the slurmhelper job array.
+
+Comment pipeline to create, run and concat results to a pandas DataFrame:
+python cosinor_fit_per_bee.py --create
+python cosinor_fit_per_bee.py --autorun
+python cosinor_fit_per_bee_concat.py
 """
 
+VELOCITY_DF_PATH_2016 = "../data/2016/velocities_1_8-25_8_2016"
+VELOCITY_DF_PATH_2019 = "../data/2019/velocities_20_8-14_9_2019"
 
 def generate_jobs_2016():
     with SSHTunnelForwarder(
@@ -37,20 +44,20 @@ def generate_jobs_2016():
         alive_bees = bb_behavior.db.get_alive_bees(from_dt, to_dt)
 
         # velocity path
-        velocity_df_path = (
-            "~/../../scratch/weronik22/data/2016/velocities_1_8-25_8_2016"
-        )
+        velocity_df_path = VELOCITY_DF_PATH_2016
+
+        # set median time window to 1h
+        second = 3600
 
         # iterate through all bees
         for bee_id in alive_bees:
-            for second in [60, 120, 300, 600, 3600, 10800, 21600]:
-                yield dict(
-                    bee_id=bee_id,
-                    from_dt=from_dt,
-                    to_dt=to_dt,
-                    velocity_df_path=velocity_df_path,
-                    second=second,
-                )
+            yield dict(
+                bee_id=bee_id,
+                from_dt=from_dt,
+                to_dt=to_dt,
+                velocity_df_path=velocity_df_path,
+                second=second,
+            )
 
 
 def generate_jobs_2019():
@@ -69,18 +76,20 @@ def generate_jobs_2019():
     alive_bees = bb_behavior.db.get_alive_bees(from_dt, to_dt)
 
     # velocity path
-    velocity_df_path = "~/../../scratch/weronik22/data/2019/velocities_20_8-14_9_2019"
+    velocity_df_path = VELOCITY_DF_PATH_2019
+
+    # set median time window to 1h
+    second = 3600
 
     # iterate through all bees
     for bee_id in alive_bees:
-        for second in [60, 120, 300, 600, 3600, 10800, 21600]:
-            yield dict(
-                bee_id=bee_id,
-                from_dt=from_dt,
-                to_dt=to_dt,
-                velocity_df_path=velocity_df_path,
-                second=second,
-            )
+        yield dict(
+            bee_id=bee_id,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            velocity_df_path=velocity_df_path,
+            second=second,
+        )
 
 
 def run_job_2019(
