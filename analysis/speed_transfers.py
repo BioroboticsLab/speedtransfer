@@ -23,10 +23,10 @@ null = args.null
 year = args.year
 
 
-def read_necessary_data():
+def read_necessary_data(year, null):
     # Select correct file from data directory.
     suffix = "null_model" if null else "side1"
-    path = os.path.join(os.pardir, "data", f"interactions_{suffix}.pkl")
+    path = os.path.join(os.pardir, "data", year, f"interactions_{suffix}.pkl")
     df = pd.read_pickle(path)
     
     # Select necessary columns.
