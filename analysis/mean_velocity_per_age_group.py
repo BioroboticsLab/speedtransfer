@@ -4,13 +4,17 @@ import datetime
 """
 This is a script for creating a per 10min velocity mean pandas dataframe per bee. Thus for each bee, the velocity is 
 averaged over each 10-minute time window for the period 01.08.-25.08.2016 and 20.08-14.09.2019. For faster computation
-the job is divided so that one bee is one node in the slurmhelper job array.
+the job is divided so that one bee is one node in the slurmhelper job array.The resulting 10min mean velocity dataframes 
+per bee are grouped by age and the mean velocity per 60min was calculated for each age.
 
 Comment pipeline to create, run and concat results to a pandas DataFrame:
 python mean_velocity_per_age_group.py --create
 python mean_velocity_per_age_group.py --autorun
-python mean_velocity_per_age_group_concat.py
+python mean_velocity_per_age_group.py --concat
 """
+
+MEAN_VELOCITY_DF_PATH_2016 = "../data/2016/mean_velocity.pkl"
+MEAN_VELOCITY_DF_PATH_2019 = "../data/2019/mean_velocity.pkl"
 
 
 def run_job_2019(bee_id=None, dt_from=None, dt_to=None, velocity_df_path=None):
@@ -134,6 +138,36 @@ def generate_jobs_2016():
             yield dict(bee_id=bee_id)
 
 
+def concat_jobs_2016(job=None):
+    import pandas as pd
+
+    # for each 10min mean velocity per bee combine to one
+    result_df = pd.DataFrame(columns=["time", "velocity", "age"])
+    for kwarg, result in job.items():
+        result_df = pd.concat([result_df, result], ignore_index=True)
+
+    # get mean velocity df per age
+    result_df = result_df.groupby(["time", "age"])["velocity"].mean().reset_index()
+
+    # save df
+    result_df.to_pickle(MEAN_VELOCITY_DF_PATH_2016)
+
+
+def concat_jobs_2019(job=None):
+    import pandas as pd
+
+    # for each 10min mean velocity per bee combine to one
+    result_df = pd.DataFrame(columns=["time", "velocity", "age"])
+    for kwarg, result in job.items():
+        result_df = pd.concat([result_df, result], ignore_index=True)
+
+    # get mean velocity df per age
+    result_df = result_df.groupby(["time", "age"])["velocity"].mean().reset_index()
+
+    # save df
+    result_df.to_pickle(MEAN_VELOCITY_DF_PATH_2019)
+
+
 # create job
 job = SLURMJob("BB2019_bayesian_velocity_mean_10min", "/home/juliam98/slurm_tryouts")
 job.map(run_job_2019, generate_jobs_2019())
@@ -148,6 +182,7 @@ job.time_limit = datetime.timedelta(minutes=60)
 job.concurrent_job_limit = 100
 job.custom_preamble = "#SBATCH --exclude=g[013-015]"
 job.exports = "OMP_NUM_THREADS=2,MKL_NUM_THREADS=2"
+job.set_concat_fun(concat_jobs_2019)
 
 # run job
 job()

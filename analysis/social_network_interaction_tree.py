@@ -6,16 +6,20 @@ This is a script for calculating activating interaction cascade tree for the per
 20.08-14.09.2019. An interaction tree is calculated by choosing a subset of bees as the roots of our interaction trees
 and then go back in time and recursively add a new child node in the trees whenever the bees interact with each other 
 and the parent node has a positive speed change ("becomes activated") after this interaction. For faster computation
-the job is in multiple slurmhelper job arrays.
+the job is in multiple slurmhelper job arrays. The resulting interaction trees are collected and each node of all paths 
+in the interaction trees are concatenated to one dataframe.
 
 Comment pipeline to create, run and concat results to a pandas DataFrame:
 python social_network_interaction_tree.py --create
 python social_network_interaction_tree.py --autorun
-python social_network_interaction_tree_concat.py
+python social_network_interaction_tree.py --concat
 """
 
 INTERACTION_DF_PATH_2016 = "../data/2016/interactions_side1.pkl"
 INTERACTION_DF_PATH_2019 = "../data/2019/interactions_side2.pkl"
+
+INTERACTION_TREE_DF_PATH_2016 = "../data/2016/sampled_interaction_tree_paths.pkl"
+INTERACTION_TREE_DF_PATH_2019 = "../data/2019/sampled_interaction_tree_paths.pkl"
 
 
 def run_job(
@@ -119,8 +123,24 @@ def generate_jobs_2016():
         )
 
 
+def concat_jobs_2016(job=None):
+    import bb_rhythm.network
+
+    path_df = bb_rhythm.network.tree_to_path_df(job)
+    path_df.reset_index(inplace=True, drop=True)
+    path_df.to_pickle(INTERACTION_TREE_DF_PATH_2016)
+
+
+def concat_jobs_2019(job=None):
+    import bb_rhythm.network
+
+    path_df = bb_rhythm.network.tree_to_path_df(job)
+    path_df.reset_index(inplace=True, drop=True)
+    path_df.to_pickle(INTERACTION_TREE_DF_PATH_2019)
+
+
 # create job
-job = SLURMJob("interaction_model_tree_2019_long", "/scratch/juliam98/")
+job = SLURMJob("interaction_model_tree_2019_2h_14_5", "/arbeit/hiveopolis")
 job.map(run_job, generate_jobs_2019())
 
 # set job parameters
@@ -132,6 +152,7 @@ job.max_job_array_size = 500
 job.time_limit = datetime.timedelta(hours=24)
 job.concurrent_job_limit = 100
 job.custom_preamble = "#SBATCH --exclude=g[013-015]"
+job.set_concat_fun(concat_jobs_2019)
 
 # run job
 job()

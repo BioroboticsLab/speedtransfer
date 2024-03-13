@@ -9,16 +9,20 @@ import bb_behavior.db
 """
 This is a script for creating a dataframe of the parameters of a cosinor fit of the velocity per bee for a time window 
 of 3 consecutive days for the period 01.08.-25.08.2016 and  20.08-14.09.2019. For faster computation the job is 
-divided that one bee is one node in the slurmhelper job array.
+divided that one bee is one node in the slurmhelper job array. The resulting cosinor fit parameter dataframes per bee 
+are concatenated to one df.
 
 Comment pipeline to create, run and concat results to a pandas DataFrame:
 python cosinor_fit_per_bee.py --create
 python cosinor_fit_per_bee.py --autorun
-python cosinor_fit_per_bee_concat.py
+python cosinor_fit_per_bee.py --concat
 """
 
 VELOCITY_DF_PATH_2016 = "../data/2016/velocities_1_8-25_8_2016"
 VELOCITY_DF_PATH_2019 = "../data/2019/velocities_20_8-14_9_2019"
+
+COSINOR_2016_PATH = "~/data/2016/cosinor.pkl"
+COSINOR_2019_PATH = "~/data/2019/cosinor.pkl"
 
 
 def generate_jobs_2016():
@@ -153,6 +157,40 @@ def run_job_2016(
         return cosinor_df
 
 
+def concat_jobs_2016(job=None):
+    import pandas as pd
+
+    # collect all dfs per bee and combine to one df
+    result_list = []
+    for kwarg, result in job.items(ignore_open_jobs=True):
+        # case of death or non-existent tracking data
+        if type(result) is dict:
+            continue
+        else:
+            result_list.append(result)
+    df = pd.concat(result_list)
+
+    # save df
+    df.to_pickle(COSINOR_2016_PATH)
+
+
+def concat_jobs_2019(job=None):
+    import pandas as pd
+
+    # collect all dfs per bee and combine to one df
+    result_list = []
+    for kwarg, result in job.items(ignore_open_jobs=True):
+        # case of death or non-existent tracking data
+        if type(result) is dict:
+            continue
+        else:
+            result_list.append(result)
+    df = pd.concat(result_list)
+
+    # save df
+    df.to_pickle(COSINOR_2019_PATH)
+
+
 # create job
 job = SLURMJob("2016_circadian_velocities_cosinor_median", "/scratch/juliam98/")
 job.map(run_job_2016, generate_jobs_2016())
@@ -167,6 +205,7 @@ job.time_limit = datetime.timedelta(minutes=60)
 job.concurrent_job_limit = 100
 job.custom_preamble = "#SBATCH --exclude=g[013-015],b[001-004],c[003-004],g[009-015]"
 job.exports = "OMP_NUM_THREADS=2,MKL_NUM_THREADS=2"
+job.set_concat_fun(concat_jobs_2016)
 
 # run job
 job()
