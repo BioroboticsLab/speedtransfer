@@ -15,17 +15,15 @@ are concatenated to one df.
 Comment pipeline to create, run and concat results to a pandas DataFrame:
 python cosinor_fit_per_bee.py --create
 python cosinor_fit_per_bee.py --autorun
-python cosinor_fit_per_bee.py --concat
+python cosinor_fit_per_bee.py --postprocess
 """
-
-VELOCITY_DF_PATH_2016 = "../data/2016/velocities_1_8-25_8_2016"
-VELOCITY_DF_PATH_2019 = "../data/2019/velocities_20_8-14_9_2019"
-
-COSINOR_2016_PATH = "~/data/2016/cosinor.pkl"
-COSINOR_2019_PATH = "~/data/2019/cosinor.pkl"
 
 
 def generate_jobs_2016():
+
+    # job im imports
+    from .. import path_settings
+
     with SSHTunnelForwarder(
         "bommel.imp.fu-berlin.de",
         ssh_username="dbreader",
@@ -49,7 +47,7 @@ def generate_jobs_2016():
         alive_bees = bb_behavior.db.get_alive_bees(from_dt, to_dt)
 
         # velocity path
-        velocity_df_path = VELOCITY_DF_PATH_2016
+        velocity_df_path = path_settings.VELOCITY_DF_PATH_2016
 
         # set median time window to 1h
         second = 3600
@@ -66,6 +64,9 @@ def generate_jobs_2016():
 
 
 def generate_jobs_2019():
+
+    from .. import path_settings
+
     # server settings
     bb_behavior.db.base.server_address = "beequel.imp.fu-berlin.de:5432"
     bb_behavior.db.base.set_season_berlin_2019()
@@ -81,7 +82,7 @@ def generate_jobs_2019():
     alive_bees = bb_behavior.db.get_alive_bees(from_dt, to_dt)
 
     # velocity path
-    velocity_df_path = VELOCITY_DF_PATH_2019
+    velocity_df_path = path_settings.VELOCITY_DF_PATH_2019
 
     # set median time window to 1h
     second = 3600
@@ -160,6 +161,8 @@ def run_job_2016(
 def concat_jobs_2016(job=None):
     import pandas as pd
 
+    from .. import path_settings
+
     # collect all dfs per bee and combine to one df
     result_list = []
     for kwarg, result in job.items(ignore_open_jobs=True):
@@ -171,12 +174,14 @@ def concat_jobs_2016(job=None):
     df = pd.concat(result_list)
 
     # save df
-    df.to_pickle(COSINOR_2016_PATH)
+    df.to_pickle(path_settings.COSINOR_DF_PATH_2016)
 
 
 def concat_jobs_2019(job=None):
     import pandas as pd
 
+    from .. import path_settings
+
     # collect all dfs per bee and combine to one df
     result_list = []
     for kwarg, result in job.items(ignore_open_jobs=True):
@@ -188,7 +193,7 @@ def concat_jobs_2019(job=None):
     df = pd.concat(result_list)
 
     # save df
-    df.to_pickle(COSINOR_2019_PATH)
+    df.to_pickle(path_settings.COSINOR_DF_PATH_2019)
 
 
 # create job
@@ -205,7 +210,7 @@ job.time_limit = datetime.timedelta(minutes=60)
 job.concurrent_job_limit = 100
 job.custom_preamble = "#SBATCH --exclude=g[013-015],b[001-004],c[003-004],g[009-015]"
 job.exports = "OMP_NUM_THREADS=2,MKL_NUM_THREADS=2"
-job.set_concat_fun(concat_jobs_2016)
+job.set_postprocess_fun(concat_jobs_2016)
 
 # run job
 job()

@@ -10,11 +10,8 @@ per bee are grouped by age and the mean velocity per 60min was calculated for ea
 Comment pipeline to create, run and concat results to a pandas DataFrame:
 python mean_velocity_per_age_group.py --create
 python mean_velocity_per_age_group.py --autorun
-python mean_velocity_per_age_group.py --concat
+python mean_velocity_per_age_group.py --postprocess
 """
-
-MEAN_VELOCITY_DF_PATH_2016 = "../data/2016/mean_velocity.pkl"
-MEAN_VELOCITY_DF_PATH_2019 = "../data/2019/mean_velocity.pkl"
 
 
 def run_job_2019(bee_id=None, dt_from=None, dt_to=None, velocity_df_path=None):
@@ -141,6 +138,8 @@ def generate_jobs_2016():
 def concat_jobs_2016(job=None):
     import pandas as pd
 
+    from .. import path_settings
+
     # for each 10min mean velocity per bee combine to one
     result_df = pd.DataFrame(columns=["time", "velocity", "age"])
     for kwarg, result in job.items():
@@ -150,12 +149,14 @@ def concat_jobs_2016(job=None):
     result_df = result_df.groupby(["time", "age"])["velocity"].mean().reset_index()
 
     # save df
-    result_df.to_pickle(MEAN_VELOCITY_DF_PATH_2016)
+    result_df.to_pickle(path_settings.MEAN_VELOCITY_DF_PATH_2016)
 
 
 def concat_jobs_2019(job=None):
     import pandas as pd
 
+    from .. import path_settings
+
     # for each 10min mean velocity per bee combine to one
     result_df = pd.DataFrame(columns=["time", "velocity", "age"])
     for kwarg, result in job.items():
@@ -165,7 +166,7 @@ def concat_jobs_2019(job=None):
     result_df = result_df.groupby(["time", "age"])["velocity"].mean().reset_index()
 
     # save df
-    result_df.to_pickle(MEAN_VELOCITY_DF_PATH_2019)
+    result_df.to_pickle(path_settings.MEAN_VELOCITY_DF_PATH_2019)
 
 
 # create job
@@ -182,7 +183,7 @@ job.time_limit = datetime.timedelta(minutes=60)
 job.concurrent_job_limit = 100
 job.custom_preamble = "#SBATCH --exclude=g[013-015]"
 job.exports = "OMP_NUM_THREADS=2,MKL_NUM_THREADS=2"
-job.set_concat_fun(concat_jobs_2019)
+job.set_postprocess_fun(concat_jobs_2019)
 
 # run job
 job()

@@ -7,16 +7,14 @@ period 01.08.-25.08.2016 and 20.08-14.09.2019. An interactions between two bees 
 when two bees are detected simultaneously in the hive with a confidence threshold of 0.25, the distance between the 
 markings on their thorax bodies is no more than 14 mm. These interactions are combined into one interaction if the 
 same detections occur within a time interval of 1 second or less between them. For faster computation the job is 
-divided that the time window of 2 minutes is one node in the slurmhelper job array.
+divided that the time window of 2 minutes is one node in the slurmhelper job array. The resulting interaction dataframes 
+per bee are concatenated to one df and the estimates of the cosinor dataframe is added.
 
 Comment pipeline to create, run and concat results to a pandas DataFrame:
 python velocity_change_per_interaction.py --create
 python velocity_change_per_interaction.py --autorun
-python velocity_change_per_interaction_concat.py
+python velocity_change_per_interaction.py --postprocess
 """
-
-VELOCITY_DF_PATH_2016 = "../data/2016/velocities_1_8-25_8_2016"
-VELOCITY_DF_PATH_2019 = "../data/2019/velocities_20_8-14_9_2019"
 
 
 def run_job_2016(dt_from=None, dt_to=None, cam_ids=None):
@@ -25,6 +23,8 @@ def run_job_2016(dt_from=None, dt_to=None, cam_ids=None):
 
     import bb_behavior.db
     import bb_rhythm.interactions
+
+    from .. import path_settings
 
     # connect with DB
     with SSHTunnelForwarder(
@@ -64,7 +64,7 @@ def run_job_2016(dt_from=None, dt_to=None, cam_ids=None):
 
             # calculate per interaction post-interaction velocity changes
             bb_rhythm.interactions.add_post_interaction_velocity_change(
-                interactions, velocity_df_path=VELOCITY_DF_PATH_2016
+                interactions, velocity_df_path=path_settings.VELOCITY_DF_PATH_2016
             )
             return interactions
 
@@ -73,6 +73,8 @@ def run_job_2019(dt_from=None, dt_to=None, cam_ids=None):
     # imports for run job
     import bb_behavior.db
     import bb_rhythm.interactions
+
+    from .. import path_settings
 
     # server settings
     bb_behavior.db.base.server_address = "beequel.imp.fu-berlin.de:5432"
@@ -102,7 +104,7 @@ def run_job_2019(dt_from=None, dt_to=None, cam_ids=None):
 
         # calculate per interaction post-interaction velocity changes
         bb_rhythm.interactions.add_post_interaction_velocity_change(
-            interactions, velocity_df_path=VELOCITY_DF_PATH_2019
+            interactions, velocity_df_path=path_settings.VELOCITY_DF_PATH_2019
         )
         return interactions
 
@@ -139,6 +141,67 @@ def generate_jobs_2019():
         yield dict(dt_from=dt_current, dt_to=dt_current + delta, cam_ids=[1])
 
 
+def concat_jobs_2016(job=None):
+    import bb_rhythm.interactions
+    import pandas as pd
+
+    from .. import path_settings
+
+    # iterate through job results and concat to dataframe
+    result_list = []
+    for kwarg, result_df in job.items(ignore_open_jobs=True):
+        try:
+            result_list.append(pd.DataFrame(result_df))
+        except AttributeError:
+            continue
+    interaction_df = pd.concat(result_list)
+
+    # read cosinor dataframe
+    cosinor_df = pd.read_pickle(path_settings.COSINOR_DF_PATH_2016)
+    cosinor_df_subset = cosinor_df[
+        ["bee_id", "amplitude", "r_squared", "date", "p_value", "phase", "age"]
+    ]
+    del cosinor_df
+
+    # merge interaction dataframe and cosinor dataframe so cosinor fit paramters are added to interaction dataframe
+    interaction_df = bb_rhythm.interactions.add_circadianess_to_interaction_df(
+        interaction_df.reset_index(), cosinor_df_subset
+    )
+
+    # save interaction dataframe
+    interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2016)
+
+
+def concat_jobs_2019(job=None):
+    import bb_rhythm.interactions
+    import pandas as pd
+
+    from .. import path_settings
+
+    # iterate through job results and concat to dataframe
+    result_list = []
+    for kwarg, result_df in job.items(ignore_open_jobs=True):
+        try:
+            result_list.append(pd.DataFrame(result_df))
+        except AttributeError:
+            continue
+    interaction_df = pd.concat(result_list)
+
+    # read cosinor dataframe
+    cosinor_df = pd.read_pickle(path_settings.COSINOR_DF_PATH_2019)
+    cosinor_df_subset = cosinor_df[
+        ["bee_id", "amplitude", "r_squared", "date", "p_value", "phase", "age"]
+    ]
+    del cosinor_df
+
+    # merge interaction dataframe and cosinor dataframe so cosinor fit paramters are added to interaction dataframe
+    interaction_df = bb_rhythm.interactions.add_circadianess_to_interaction_df(
+        interaction_df.reset_index(), cosinor_df_subset
+    )
+
+    # save interaction dataframe
+    interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2019)
+
 # create job
 job = SLURMJob("velocity_change_per_interaction_cam_id_1_2019", "/scratch/juliam98/")
 job.map(run_job_2019, generate_jobs_2019())
@@ -152,6 +215,7 @@ job.max_job_array_size = 5000
 job.time_limit = datetime.timedelta(minutes=440)
 job.concurrent_job_limit = 25
 job.custom_preamble = "#SBATCH --exclude=g[013-015]"
+job.set_postprocess_fun(concat_jobs_2019)
 
 # run job
 job()

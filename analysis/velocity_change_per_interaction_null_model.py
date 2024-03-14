@@ -7,21 +7,14 @@ change for the period 01.08.-25.08.2016 and 20.08-14.09.2019. The interaction nu
 distribution of the start and end times of a given interaction dataframe and selecting two random bees at those times 
 that the bees were detected in the hive at that time. These pairs of bees are considered as "interacting" and their 
 post-interaction speed change is calculated. For faster computation the job is divided that the time window of 4 minutes 
-is one node in the slurmhelper job array.
+is one node in the slurmhelper job array. The resulting interaction dataframes per bee are concatenated to one df and 
+the estimates of the cosinor dataframe is added.
 
 Comment pipeline to create, run and concat results to a pandas DataFrame:
 python velocity_change_per_interaction_null_model.py --create
 python velocity_change_per_interaction_null_model.py --autorun
-python velocity_change_per_interaction_concat.py
+python velocity_change_per_interaction_null_model.py --postprocess
 """
-
-VELOCITY_DF_PATH_2016 = "../data/2016/velocities_1_8-25_8_2016"
-VELOCITY_DF_PATH_2019 = "../data/2019/velocities_20_8-14_9_2019"
-
-INTERACTION_SIDE_1_DF_PATH_2016 = "../data/2016/interactions_side1.pkl"
-INTERACTION_SIDE_2_DF_PATH_2016 = "../data/2016/interactions_side2.pkl"
-INTERACTION_SIDE_1_DF_PATH_2019 = "../data/2019/interactions_side1.pkl"
-INTERACTION_SIDE_2_DF_PATH_2019 = "../data/2019/interactions_side2.pkl"
 
 
 def run_job_2019(
@@ -82,6 +75,7 @@ def run_job_2016(
     import bb_behavior.db
     import bb_rhythm.interactions
 
+
     # subset interaction df by time window and get interaction count for sampling to retain count-time distribution
     df_grouped = bb_rhythm.interactions.get_sub_interaction_df_for_null_model_sampling(
         dt_from, dt_to, interaction_model_path
@@ -128,6 +122,8 @@ def generate_jobs_2019():
     import datetime
     import pytz
 
+    from .. import path_settings
+
     # set time period and interaction time window
     dt_from = pytz.UTC.localize(datetime.datetime(2019, 8, 20))
     dt_to = pytz.UTC.localize(datetime.datetime(2019, 9, 14))
@@ -140,8 +136,8 @@ def generate_jobs_2019():
         yield dict(
             dt_from=dt_current,
             dt_to=dt_current + delta,
-            interaction_model_path=INTERACTION_SIDE_1_DF_PATH_2019,
-            velocities_path=VELOCITY_DF_PATH_2019,
+            interaction_model_path=path_settings.INTERACTION_SIDE_1_DF_PATH_2019,
+            velocities_path=path_settings.VELOCITY_DF_PATH_2019,
             cam_ids=[0],
         )
 
@@ -149,7 +145,8 @@ def generate_jobs_2019():
 def generate_jobs_2016():
     import datetime
     import pytz
-    import os
+
+    from .. import path_settings
 
     # set time period and interaction time window
     dt_from = pytz.UTC.localize(datetime.datetime(2016, 8, 1))
@@ -163,10 +160,71 @@ def generate_jobs_2016():
         yield dict(
             dt_from=dt_current,
             dt_to=dt_current + delta,
-            interaction_model_path=INTERACTION_SIDE_1_DF_PATH_2016,
-            velocities_path=VELOCITY_DF_PATH_2016,
+            interaction_model_path=path_settings.INTERACTION_SIDE_1_DF_PATH_2016,
+            velocities_path=path_settings.VELOCITY_DF_PATH_2016,
             cam_ids=[0, 1],
         )
+
+def concat_jobs_2016(job=None):
+    import bb_rhythm.interactions
+    import pandas as pd
+
+    from .. import path_settings
+
+    # iterate through job results and concat to dataframe
+    result_list = []
+    for kwarg, result_df in job.items(ignore_open_jobs=True):
+        try:
+            result_list.append(pd.DataFrame(result_df))
+        except AttributeError:
+            continue
+    interaction_df = pd.concat(result_list)
+
+    # read cosinor dataframe
+    cosinor_df = pd.read_pickle(path_settings.COSINOR_DF_PATH_2016)
+    cosinor_df_subset = cosinor_df[
+        ["bee_id", "amplitude", "r_squared", "date", "p_value", "phase", "age"]
+    ]
+    del cosinor_df
+
+    # merge interaction dataframe and cosinor dataframe so cosinor fit paramters are added to interaction dataframe
+    interaction_df = bb_rhythm.interactions.add_circadianess_to_interaction_df(
+        interaction_df.reset_index(), cosinor_df_subset
+    )
+
+    # save interaction dataframe
+    interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2016_NULL_MODEL)
+
+
+def concat_jobs_2019(job=None):
+    import bb_rhythm.interactions
+    import pandas as pd
+
+    from .. import path_settings
+
+    # iterate through job results and concat to dataframe
+    result_list = []
+    for kwarg, result_df in job.items(ignore_open_jobs=True):
+        try:
+            result_list.append(pd.DataFrame(result_df))
+        except AttributeError:
+            continue
+    interaction_df = pd.concat(result_list)
+
+    # read cosinor dataframe
+    cosinor_df = pd.read_pickle(path_settings.COSINOR_DF_PATH_2019)
+    cosinor_df_subset = cosinor_df[
+        ["bee_id", "amplitude", "r_squared", "date", "p_value", "phase", "age"]
+    ]
+    del cosinor_df
+
+    # merge interaction dataframe and cosinor dataframe so cosinor fit paramters are added to interaction dataframe
+    interaction_df = bb_rhythm.interactions.add_circadianess_to_interaction_df(
+        interaction_df.reset_index(), cosinor_df_subset
+    )
+
+    # save interaction dataframe
+    interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2019_NULL_MODEL)
 
 
 # create job
@@ -182,6 +240,7 @@ job.max_job_array_size = 5000
 job.time_limit = datetime.timedelta(minutes=60)
 job.concurrent_job_limit = 50
 job.custom_preamble = "#SBATCH --exclude=g[013-015]"
+job.set_postprocess_fun(concat_jobs_2019)
 
 # run job
 job()
