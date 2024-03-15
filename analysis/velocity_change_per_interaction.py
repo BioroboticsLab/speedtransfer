@@ -202,6 +202,7 @@ def concat_jobs_2019(job=None):
     # save interaction dataframe
     interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2019)
 
+
 # create job
 job = SLURMJob("velocity_change_per_interaction_cam_id_1_2019", "/scratch/juliam98/")
 job.map(run_job_2019, generate_jobs_2019())
