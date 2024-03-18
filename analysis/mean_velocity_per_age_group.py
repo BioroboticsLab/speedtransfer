@@ -2,10 +2,9 @@ from slurmhelper import SLURMJob
 import datetime
 
 """
-This is a script for creating a per 10min velocity mean pandas dataframe per bee. Thus for each bee, the velocity is 
-averaged over each 10-minute time window for the period 01.08.-25.08.2016 and 20.08-14.09.2019. For faster computation
-the job is divided so that one bee is one node in the slurmhelper job array.The resulting 10min mean velocity dataframes 
-per bee are grouped by age and the mean velocity per 60min was calculated for each age.
+This is a script for creating a per 10min velocity mean pandas dataframe per bee. Thus for each bee and for each age, 
+the velocity is averaged over each 10-minute time window for the period 01.08.-25.08.2016 and 20.08-14.09.2019. For 
+faster computation the job is divided so that one bee is one node in the slurmhelper job array.
 
 Comment pipeline to create, run and concat results to a pandas DataFrame:
 python mean_velocity_per_age_group.py --create

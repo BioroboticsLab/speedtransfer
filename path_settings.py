@@ -15,17 +15,17 @@ COSINOR_DF_PATH_2016 = "~/data/2016/cosinor.pkl"
 COSINOR_DF_PATH_2019 = "~/data/2019/cosinor.pkl"
 
 # Interactions
+INTERACTION_SIDE_0_DF_PATH_2016 = "../data/2016/interactions_side0.pkl"
 INTERACTION_SIDE_1_DF_PATH_2016 = "../data/2016/interactions_side1.pkl"
-INTERACTION_SIDE_2_DF_PATH_2016 = "../data/2016/interactions_side2.pkl"
+INTERACTION_SIDE_0_DF_PATH_2019 = "../data/2019/interactions_side0.pkl"
 INTERACTION_SIDE_1_DF_PATH_2019 = "../data/2019/interactions_side1.pkl"
-INTERACTION_SIDE_2_DF_PATH_2019 = "../data/2019/interactions_side2.pkl"
 
 # Interaction null model
-INTERACTION_SIDE_1_DF_PATH_2016_NULL_MODEL = (
-    "../data/2016/interactions_side1_null_model.pkl"
+INTERACTION_SIDE_0_DF_PATH_2016_NULL_MODEL = (
+    "../data/2016/interactions_side0_null_model.pkl"
 )
-INTERACTION_SIDE_1_DF_PATH_2019_NULL_MODEL = (
-    "../data/2019/interactions_side1_null_model.pkl"
+INTERACTION_SIDE_0_DF_PATH_2019_NULL_MODEL = (
+    "../data/2019/interactions_side0_null_model.pkl"
 )
 
 # Interaction trees

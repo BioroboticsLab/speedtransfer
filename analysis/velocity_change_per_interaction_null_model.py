@@ -158,7 +158,7 @@ def generate_jobs_2016():
         yield dict(
             dt_from=dt_current,
             dt_to=dt_current + delta,
-            interaction_model_path=path_settings.INTERACTION_SIDE_1_DF_PATH_2016,
+            interaction_model_path=path_settings.INTERACTION_SIDE_0_DF_PATH_2016,
             velocities_path=path_settings.VELOCITY_DF_PATH_2016,
             cam_ids=[0, 1],
         )

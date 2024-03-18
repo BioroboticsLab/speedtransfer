@@ -8,7 +8,7 @@ from .. import path_settings
 
 
 # load interaction df
-interaction_df = pd.read_pickle(path_settings.INTERACTION_SIDE_2_DF_PATH_2016)
+interaction_df = pd.read_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2016)
 
 # filter overlap
 interaction_df = bb_rhythm.interactions.filter_overlap(interaction_df)
