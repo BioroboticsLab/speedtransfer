@@ -78,7 +78,7 @@ def generate_jobs_2019():
 
     from .. import path_settings
 
-    path = path_settings.INTERACTION_SIDE_2_DF_PATH_2019
+    path = path_settings.INTERACTION_SIDE_0_DF_PATH_2019
     time_threshold = datetime.timedelta(minutes=30)
     vel_change_threshold = 0
     query = "(age_focal < 5) & (phase_focal > 12) & (p_value_focal < 0.05) & (age_focal > 0) & (vel_change_bee_focal > 0)"
@@ -102,7 +102,7 @@ def generate_jobs_2016():
 
     from .. import path_settings
 
-    path = path_settings.INTERACTION_SIDE_1_DF_PATH_2016
+    path = path_settings.INTERACTION_SIDE_0_DF_PATH_2016
     time_threshold = datetime.timedelta(minutes=30)
     vel_change_threshold = 0
     query = "(age_focal < 5) & (phase_focal > 12) & (p_value_focal < 0.05) & (age_focal > 0) & (vel_change_bee_focal > 0)"
