@@ -58,4 +58,4 @@ dist_agg_df = interaction_df.groupby(["x_pos_start_focal", "y_pos_start_focal"])
 )
 
 # save pickle
-dist_agg_df.to_pickle("../data/2016/dist_exit_df_2016.pkl")
+dist_agg_df.to_csv("../aggregated_results/2016/dist_exit_df_2016.csv")
