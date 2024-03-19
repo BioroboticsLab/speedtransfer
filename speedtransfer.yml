@@ -312,7 +312,7 @@ dependencies:
     - scikit-learn==1.2.2
     - scipy==1.10.1
     - setuptools==67.8.0
-    - slurmhelper @ https://github.com/walachey/slurmhelper
+    - slurmhelper @ git+https://github.com/walachey/slurmhelper
     - suncalc==0.1.3
     - sympy==1.12
     - tabulate==0.8.10
