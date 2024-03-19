@@ -75,7 +75,6 @@ def run_job_2016(
     import bb_behavior.db
     import bb_rhythm.interactions
 
-
     # subset interaction df by time window and get interaction count for sampling to retain count-time distribution
     df_grouped = bb_rhythm.interactions.get_sub_interaction_df_for_null_model_sampling(
         dt_from, dt_to, interaction_model_path
@@ -102,11 +101,10 @@ def run_job_2016(
         with bb_behavior.db.base.get_database_connection(
             application_name="find_detections_in_frame"
         ) as db:
-            cursor = db.cursor()
 
             # sample random bees from frame and assign them as interaction partners
             interactions = bb_rhythm.interactions.assign_random_bees_as_interactions(
-                db, df_grouped, cam_ids=None
+                db, df_grouped, cam_ids=cam_ids
             )
             if not interactions:
                 return {None: dict(error="No events found..")}
@@ -160,10 +158,11 @@ def generate_jobs_2016():
         yield dict(
             dt_from=dt_current,
             dt_to=dt_current + delta,
-            interaction_model_path=path_settings.INTERACTION_SIDE_1_DF_PATH_2016,
+            interaction_model_path=path_settings.INTERACTION_SIDE_0_DF_PATH_2016,
             velocities_path=path_settings.VELOCITY_DF_PATH_2016,
             cam_ids=[0, 1],
         )
+
 
 def concat_jobs_2016(job=None):
     import bb_rhythm.interactions

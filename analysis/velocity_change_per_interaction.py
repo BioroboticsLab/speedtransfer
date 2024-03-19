@@ -3,7 +3,7 @@ import datetime
 
 """
 This is a script for creating a dataframe of the bee interactions and their post-interaction velocity change for the 
-period 01.08.-25.08.2016 and 20.08-14.09.2019. An interactions between two bees (focal and non-focal bees) is defined 
+period 01.08.-25.08.2016 and 20.08-14.09.2019. An interaction between two bees (focal and non-focal bees) is defined 
 when two bees are detected simultaneously in the hive with a confidence threshold of 0.25, the distance between the 
 markings on their thorax bodies is no more than 14 mm. These interactions are combined into one interaction if the 
 same detections occur within a time interval of 1 second or less between them. For faster computation the job is 
@@ -169,7 +169,7 @@ def concat_jobs_2016(job=None):
     )
 
     # save interaction dataframe
-    interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2016)
+    interaction_df.to_pickle(path_settings.INTERACTION_SIDE_0_DF_PATH_2016)
 
 
 def concat_jobs_2019(job=None):
@@ -201,6 +201,7 @@ def concat_jobs_2019(job=None):
 
     # save interaction dataframe
     interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2019)
+
 
 # create job
 job = SLURMJob("velocity_change_per_interaction_cam_id_1_2019", "/scratch/juliam98/")
