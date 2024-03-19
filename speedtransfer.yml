@@ -232,10 +232,10 @@ dependencies:
     - aiosignal==1.3.1
     - astropy==6.0.0
     - astropy-iers-data==0.2024.3.11.18.33.3
-    - bb-behavior @ git+https://github.com/BioroboticsLab/bb_behavior@main
-    - bb-circadian @ git+https://github.com/BioroboticsLab/bb_circadian@main
-    - bb-rhythm @ git+https://github.com/BioroboticsLab/bb_rhythm@main
-    - bb-utils @ git+https://github.com/BioroboticsLab/bb_utils@main
+    - bb-behavior @ git+https://github.com/BioroboticsLab/bb_behavior
+    - bb-circadian @ git+https://github.com/BioroboticsLab/bb_circadian
+    - bb-rhythm @ git+https://github.com/BioroboticsLab/bb_rhythm
+    - bb-utils @ git+https://github.com/BioroboticsLab/bb_utils
     - cachetools==5.3.3
     - certifi==2023.5.7
     - charset-normalizer==3.1.0
@@ -312,7 +312,7 @@ dependencies:
     - scikit-learn==1.2.2
     - scipy==1.10.1
     - setuptools==67.8.0
-    - slurmhelper @ https://github.com/walachey/slurmhelper@main
+    - slurmhelper @ https://github.com/walachey/slurmhelper
     - suncalc==0.1.3
     - sympy==1.12
     - tabulate==0.8.10
