@@ -1,5 +1,7 @@
 import datetime
 from slurmhelper import SLURMJob
+import sys
+from pathlib import Path
 
 """
 This is a script for calculating activating interaction cascade tree for the period 01.08.-25.08.2016 and 
@@ -76,7 +78,7 @@ def run_job(
 def generate_jobs_2019():
     import datetime
 
-    from .. import path_settings
+    import path_settings
 
     path = path_settings.INTERACTION_SIDE_0_DF_PATH_2019
     time_threshold = datetime.timedelta(minutes=30)
@@ -100,7 +102,7 @@ def generate_jobs_2019():
 def generate_jobs_2016():
     import datetime
 
-    from .. import path_settings
+    import path_settings
 
     path = path_settings.INTERACTION_SIDE_0_DF_PATH_2016
     time_threshold = datetime.timedelta(minutes=30)
@@ -124,7 +126,7 @@ def generate_jobs_2016():
 def concat_jobs_2016(job=None):
     import bb_rhythm.network
 
-    from .. import path_settings
+    import path_settings
 
     path_df = bb_rhythm.network.tree_to_path_df(job)
     path_df.reset_index(inplace=True, drop=True)
@@ -134,12 +136,15 @@ def concat_jobs_2016(job=None):
 def concat_jobs_2019(job=None):
     import bb_rhythm.network
 
-    from .. import path_settings
+    import path_settings
 
     path_df = bb_rhythm.network.tree_to_path_df(job)
     path_df.reset_index(inplace=True, drop=True)
     path_df.to_pickle(path_settings.INTERACTION_TREE_DF_PATH_2019)
 
+
+# set sys path
+sys.path.append(str(Path("social_network_interaction_tree.py").resolve().parents[1]))
 
 # create job
 job = SLURMJob("interaction_model_tree_2019_2h_14_5", "/arbeit/hiveopolis")

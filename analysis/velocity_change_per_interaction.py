@@ -1,5 +1,7 @@
 from slurmhelper import SLURMJob
 import datetime
+import sys
+from pathlib import Path
 
 """
 This is a script for creating a dataframe of the bee interactions and their post-interaction velocity change for the 
@@ -24,7 +26,7 @@ def run_job_2016(dt_from=None, dt_to=None, cam_ids=None):
     import bb_behavior.db
     import bb_rhythm.interactions
 
-    from .. import path_settings
+    import path_settings
 
     # connect with DB
     with SSHTunnelForwarder(
@@ -74,7 +76,7 @@ def run_job_2019(dt_from=None, dt_to=None, cam_ids=None):
     import bb_behavior.db
     import bb_rhythm.interactions
 
-    from .. import path_settings
+    import path_settings
 
     # server settings
     bb_behavior.db.base.server_address = "beequel.imp.fu-berlin.de:5432"
@@ -145,7 +147,7 @@ def concat_jobs_2016(job=None):
     import bb_rhythm.interactions
     import pandas as pd
 
-    from .. import path_settings
+    import path_settings
 
     # iterate through job results and concat to dataframe
     result_list = []
@@ -176,7 +178,7 @@ def concat_jobs_2019(job=None):
     import bb_rhythm.interactions
     import pandas as pd
 
-    from .. import path_settings
+    import path_settings
 
     # iterate through job results and concat to dataframe
     result_list = []
@@ -202,6 +204,9 @@ def concat_jobs_2019(job=None):
     # save interaction dataframe
     interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2019)
 
+
+# set sys path
+sys.path.append(str(Path("velocity_change_per_interaction.py").resolve().parents[1]))
 
 # create job
 job = SLURMJob("velocity_change_per_interaction_cam_id_1_2019", "/scratch/juliam98/")
