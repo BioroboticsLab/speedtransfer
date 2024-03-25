@@ -22,6 +22,9 @@ parser.add_argument(
 parser.add_argument(
     "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
 )
+parser.add_argument(
+    "--side", type=int, help="Which side of the hive to analyze the data for. (0 or 1)"
+)
 
 args = parser.parse_args()
 null = args.null
