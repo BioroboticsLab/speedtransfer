@@ -17,7 +17,7 @@ MEAN_VELOCITY_DF_PATH_2019 = os.path.join(DATA_PATH_2019, "mean_velocity.pkl")
 
 # cherry-picked velocities 2019
 VELOCITY_2088_DF_PATH_2019 = os.path.join(DATA_PATH_2019, "velocity_2088.pkl")
-VELOCITY_5101_DF_PATH_2019 = os.path.join(DATA_PATH_2019, "velocity_2088.pkl")
+VELOCITY_5101_DF_PATH_2019 = os.path.join(DATA_PATH_2019, "velocity_5101.pkl")
 
 # velocities
 VELOCITY_DF_PATH_2016 = os.path.join(DATA_PATH_2016, "velocities_1_8-25_8_2016")
