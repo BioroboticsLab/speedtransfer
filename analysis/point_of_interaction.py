@@ -10,7 +10,7 @@ parser.add_argument(
     "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
 )
 parser.add_argument(
-    "--side", type=int, help="Which side of the hive to analyze the data for. (1 or 2)"
+    "--side", type=int, help="Which side of the hive to analyze the data for. (0 or 1)"
 )
 parser.add_argument(
     "--focal",

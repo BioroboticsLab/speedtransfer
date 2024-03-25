@@ -14,8 +14,11 @@ parser.add_argument(
     "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
 )
 parser.add_argument(
-    "--side", type=int, help="Which side of the hive to analyze the data for. (1 or 2)"
+    "--side", type=int, help="Which side of the hive to analyze the data for. (0 or 1)"
 )
+args = parser.parse_args()
+
+path, exit_pos, save_to = path_settings.set_parameters(args.year, args.side)
 
 
 def read_data(path):
@@ -123,16 +126,55 @@ def concat_grids_over_time(df, var='vel_change', aggfunc='median', scale=False):
         
     return accumulator
 
+def convert_grid_to_df(grid_3d):
+    hours, h, w = grid_3d.shape
 
+    # Convert to df.
+    row_ls = []
+    for hour in range(hours):
+        for y in range(h):
+            for x in range(w):
+                val = grid_3d[hour,y,x]
+                row_ls.append([x, y, hour, val])
+
+    return pd.DataFrame(row_ls, columns = ['x_grid', 'y_grid', 'hour', 'vel_change'])
+
+
+def get_vel_ch_vs_dist(df):
+    
+    # Calculate distance to exit.
+    exit_x = exit_pos[0]
+    exit_y = exit_pos[1]
+    
+    df['dist'] = np.sqrt((df.x_grid - exit_x)**2 + (df.y_grid - exit_y)**2)
+    df.drop(columns=['x_grid', 'y_grid'], inplace=True)
+
+    # Bin distance into quantiles and use lower boundary for label.
+    df['dist'] = pd.cut(df['dist'], 18, precision=0).map(lambda x: int(x.right))
+    
+    # Create pivot for heatmap.
+    pivot = pd.pivot_table(df, index='dist', columns='hour',
+                           values='vel_change', aggfunc='mean')
+    
+    return pivot
+    
+    
 if __name__ == "__main__":
     
     var = 'vel_change'
     aggfunc = 'median'
-    path = path_settings.INTERACTION_SIDE_0_DF_PATH_2019
+    scale = False
     
-    df = read_data()
+    df = read_data(path)
     df = replace_time_with_hour(df)
     df = swap_focal_bee(df)
-    grid_3d = concat_grids_over_time(df, var, aggfunc)
-
+    
+    if scale:
+        grid_3d = concat_grids_over_time(df, var, aggfunc, scale=scale)
+        df = convert_grid_to_df(grid_3d)
+        
+    vel_ch_vs_dist_and_hour = get_vel_ch_vs_dist(df)
+    save_to = os.path.join(os.pardir, "aggregated_results", args.year, "vel_change_per_dist_and_hour.npy")
+    np.save(save_to, vel_ch_vs_dist_and_hour)
+        
 
