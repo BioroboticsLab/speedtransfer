@@ -147,8 +147,8 @@ def concat_jobs_2019(job=None):
 sys.path.append(str(Path("social_network_interaction_tree.py").resolve().parents[1]))
 
 # create job
-job = SLURMJob("interaction_model_tree_2019_2h_14_5", "/arbeit/hiveopolis")
-job.map(run_job, generate_jobs_2019())
+job = SLURMJob("interaction_model_tree_2016", "/scratch/juliam98/")
+job.map(run_job, generate_jobs_2016())
 
 # set job parameters
 job.qos = "standard"
@@ -159,7 +159,7 @@ job.max_job_array_size = 500
 job.time_limit = datetime.timedelta(hours=24)
 job.concurrent_job_limit = 100
 job.custom_preamble = "#SBATCH --exclude=g[013-015]"
-job.set_postprocess_fun(concat_jobs_2019)
+job.set_postprocess_fun(concat_jobs_2016)
 
 # run job
 job()
