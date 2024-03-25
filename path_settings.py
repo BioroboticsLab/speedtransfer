@@ -28,8 +28,10 @@ COSINOR_DF_PATH_2016 = os.path.join(DATA_PATH_2016, "cosinor.pkl")
 COSINOR_DF_PATH_2019 = os.path.join(DATA_PATH_2019, "cosinor.pkl")
 
 # cosinor estimates aggregated in hive position
-DIST_EXIT_DF_PATH_2016 = os.path.join(AGG_DATA_PATH_2016, "dist_exit_df.csv")
-DIST_EXIT_DF_PATH_2019 = os.path.join(AGG_DATA_PATH_2019, "dist_exit_df.csv")
+DIST_EXIT_SIDE_0_DF_PATH_2016 = os.path.join(AGG_DATA_PATH_2016, "dist_exit_df_side0.csv")
+DIST_EXIT_SIDE_1_DF_PATH_2016 = os.path.join(AGG_DATA_PATH_2016, "dist_exit_df_side1.csv")
+DIST_EXIT_SIDE_0_DF_PATH_2019 = os.path.join(AGG_DATA_PATH_2019, "dist_exit_df_side0.csv")
+DIST_EXIT_SIDE_1_DF_PATH_2019 = os.path.join(AGG_DATA_PATH_2019, "dist_exit_df_side1.csv")
 
 # Interactions
 INTERACTION_SIDE_0_DF_PATH_2016 = os.path.join(DATA_PATH_2016, "interactions_side0.pkl")
