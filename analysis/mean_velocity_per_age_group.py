@@ -1,5 +1,7 @@
 from slurmhelper import SLURMJob
 import datetime
+import sys
+from pathlib import Path
 
 """
 This is a script for creating a per 10min velocity mean pandas dataframe per bee. Thus for each bee and for each age, 
@@ -137,7 +139,7 @@ def generate_jobs_2016():
 def concat_jobs_2016(job=None):
     import pandas as pd
 
-    from .. import path_settings
+    import path_settings
 
     # for each 10min mean velocity per bee combine to one
     result_df = pd.DataFrame(columns=["time", "velocity", "age"])
@@ -154,7 +156,7 @@ def concat_jobs_2016(job=None):
 def concat_jobs_2019(job=None):
     import pandas as pd
 
-    from .. import path_settings
+    import path_settings
 
     # for each 10min mean velocity per bee combine to one
     result_df = pd.DataFrame(columns=["time", "velocity", "age"])
@@ -167,6 +169,8 @@ def concat_jobs_2019(job=None):
     # save df
     result_df.to_pickle(path_settings.MEAN_VELOCITY_DF_PATH_2019)
 
+# set sys path
+sys.path.append(str(Path("mean_velocity_per_age_group.py").resolve().parents[1]))
 
 # create job
 job = SLURMJob("BB2019_bayesian_velocity_mean_10min", "/home/juliam98/slurm_tryouts")

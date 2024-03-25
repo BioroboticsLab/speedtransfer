@@ -1,11 +1,17 @@
 import pandas as pd
 import numpy as np
 import math
+import sys
+import os
+from pathlib import Path
 
 import bb_rhythm.interactions
 
-from .. import path_settings
+# set sys path
+sys.path.append(str(Path("aggregate_cosinor_estimates_per_hive_position.py").resolve().parents[1]))
 
+# import paths
+import path_settings
 
 # load interaction df
 interaction_df = pd.read_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2016)
@@ -58,4 +64,4 @@ dist_agg_df = interaction_df.groupby(["x_pos_start_focal", "y_pos_start_focal"])
 )
 
 # save pickle
-dist_agg_df.to_csv("../aggregated_results/2016/dist_exit_df_2016.csv")
+dist_agg_df.to_csv(os.path.join("..", "aggregated_results", "2016", "dist_exit_df_2016.csv"))

@@ -1,5 +1,7 @@
 from slurmhelper import SLURMJob
 import datetime
+import sys
+from pathlib import Path
 
 """
 This is a script for creating a dataframe of a null model for bee interactions and their post-interaction velocity 
@@ -67,10 +69,7 @@ def run_job_2016(
     cam_ids=None,
 ):
     # imports for run job
-    import datetime
     from sshtunnel import SSHTunnelForwarder
-    import pandas as pd
-    import numpy as np
 
     import bb_behavior.db
     import bb_rhythm.interactions
@@ -120,7 +119,7 @@ def generate_jobs_2019():
     import datetime
     import pytz
 
-    from .. import path_settings
+    import path_settings
 
     # set time period and interaction time window
     dt_from = pytz.UTC.localize(datetime.datetime(2019, 8, 20))
@@ -144,7 +143,7 @@ def generate_jobs_2016():
     import datetime
     import pytz
 
-    from .. import path_settings
+    import path_settings
 
     # set time period and interaction time window
     dt_from = pytz.UTC.localize(datetime.datetime(2016, 8, 1))
@@ -168,7 +167,7 @@ def concat_jobs_2016(job=None):
     import bb_rhythm.interactions
     import pandas as pd
 
-    from .. import path_settings
+    import path_settings
 
     # iterate through job results and concat to dataframe
     result_list = []
@@ -225,6 +224,9 @@ def concat_jobs_2019(job=None):
     # save interaction dataframe
     interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2019_NULL_MODEL)
 
+
+# set sys path
+sys.path.append(str(Path("velocity_change_per_interaction_null_model.py").resolve().parents[1]))
 
 # create job
 job = SLURMJob("velocity_change_per_interaction_null_2019_side1", "/scratch/juliam98/")

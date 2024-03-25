@@ -2,6 +2,8 @@ from slurmhelper import SLURMJob
 import datetime
 import pytz
 from sshtunnel import SSHTunnelForwarder
+import sys
+from pathlib import Path
 
 import bb_behavior.db.base
 import bb_behavior.db
@@ -22,7 +24,7 @@ python cosinor_fit_per_bee.py --postprocess
 def generate_jobs_2016():
 
     # job im imports
-    from .. import path_settings
+    import path_settings
 
     with SSHTunnelForwarder(
         "bommel.imp.fu-berlin.de",
@@ -65,7 +67,7 @@ def generate_jobs_2016():
 
 def generate_jobs_2019():
 
-    from .. import path_settings
+    import path_settings
 
     # server settings
     bb_behavior.db.base.server_address = "beequel.imp.fu-berlin.de:5432"
@@ -161,7 +163,7 @@ def run_job_2016(
 def concat_jobs_2016(job=None):
     import pandas as pd
 
-    from .. import path_settings
+    import path_settings
 
     # collect all dfs per bee and combine to one df
     result_list = []
@@ -180,7 +182,7 @@ def concat_jobs_2016(job=None):
 def concat_jobs_2019(job=None):
     import pandas as pd
 
-    from .. import path_settings
+    import path_settings
 
     # collect all dfs per bee and combine to one df
     result_list = []
@@ -195,6 +197,9 @@ def concat_jobs_2019(job=None):
     # save df
     df.to_pickle(path_settings.COSINOR_DF_PATH_2019)
 
+
+# set sys path
+sys.path.append(str(Path("cosinor_fit_per_bee.py").resolve().parents[1]))
 
 # create job
 job = SLURMJob("2016_circadian_velocities_cosinor_median", "/scratch/juliam98/")

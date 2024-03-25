@@ -80,6 +80,9 @@ and to concatenate the output of the slurm arrays to a single dataframe.
 python cosinor_fit_per_bee.py --postprocess
 ```
 
+More flags and further information can be found [here](htttps://ww.github.com/walachey/slurmhelper) or 
+with ``python foo.py --help``.
+
 ### Figures
 Dive into the jupyter notebooks which contain visualizations of the data. 
 ``figure_panel_1.ipynb``:
