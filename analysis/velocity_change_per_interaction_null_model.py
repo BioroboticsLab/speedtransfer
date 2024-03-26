@@ -179,7 +179,7 @@ def concat_jobs_2016(job=None):
     interaction_df = pd.concat(result_list)
 
     # read cosinor dataframe
-    cosinor_df = pd.read_pickle(path_settings.COSINOR_DF_PATH_2016)
+    cosinor_df = pd.read_csv(path_settings.COSINOR_DF_PATH_2016)
     cosinor_df_subset = cosinor_df[
         ["bee_id", "amplitude", "r_squared", "date", "p_value", "phase", "age"]
     ]
@@ -191,7 +191,7 @@ def concat_jobs_2016(job=None):
     )
 
     # save interaction dataframe
-    interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2016_NULL_MODEL)
+    interaction_df.to_csv(path_settings.INTERACTION_SIDE_0_DF_PATH_2016_NULL_MODEL, index=False)
 
 
 def concat_jobs_2019(job=None):
@@ -210,7 +210,7 @@ def concat_jobs_2019(job=None):
     interaction_df = pd.concat(result_list)
 
     # read cosinor dataframe
-    cosinor_df = pd.read_pickle(path_settings.COSINOR_DF_PATH_2019)
+    cosinor_df = pd.read_csv(path_settings.COSINOR_DF_PATH_2019)
     cosinor_df_subset = cosinor_df[
         ["bee_id", "amplitude", "r_squared", "date", "p_value", "phase", "age"]
     ]
@@ -222,14 +222,14 @@ def concat_jobs_2019(job=None):
     )
 
     # save interaction dataframe
-    interaction_df.to_pickle(path_settings.INTERACTION_SIDE_1_DF_PATH_2019_NULL_MODEL)
+    interaction_df.to_csv(path_settings.INTERACTION_SIDE_0_DF_PATH_2019_NULL_MODEL, index=False)
 
 
 # set sys path
 sys.path.append(str(Path("velocity_change_per_interaction_null_model.py").resolve().parents[1]))
 
 # create job
-job = SLURMJob("velocity_change_per_interaction_null_2019_side1", "/scratch/juliam98/")
+job = SLURMJob("velocity_change_per_interaction_null_2019_side0", "/scratch/juliam98/")
 job.map(run_job_2019, generate_jobs_2019())
 
 # set job parameters

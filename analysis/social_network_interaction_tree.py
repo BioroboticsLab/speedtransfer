@@ -38,7 +38,7 @@ def run_job(
         return random_samples
 
     # get interaction_df
-    interaction_df = pd.read_pickle(path)
+    interaction_df = pd.read_csv(path)
 
     # filter overlap
     interaction_df = bb_rhythm.interactions.filter_overlap(interaction_df)
@@ -130,7 +130,7 @@ def concat_jobs_2016(job=None):
 
     path_df = bb_rhythm.network.tree_to_path_df(job)
     path_df.reset_index(inplace=True, drop=True)
-    path_df.to_pickle(path_settings.INTERACTION_TREE_DF_PATH_2016)
+    path_df.to_csv(path_settings.INTERACTION_TREE_DF_PATH_2016, index=False)
 
 
 def concat_jobs_2019(job=None):
@@ -140,7 +140,7 @@ def concat_jobs_2019(job=None):
 
     path_df = bb_rhythm.network.tree_to_path_df(job)
     path_df.reset_index(inplace=True, drop=True)
-    path_df.to_pickle(path_settings.INTERACTION_TREE_DF_PATH_2019)
+    path_df.to_csv(path_settings.INTERACTION_TREE_DF_PATH_2019, index=False)
 
 
 # set sys path

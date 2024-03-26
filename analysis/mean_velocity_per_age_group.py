@@ -150,7 +150,7 @@ def concat_jobs_2016(job=None):
     result_df = result_df.groupby(["time", "age"])["velocity"].mean().reset_index()
 
     # save df
-    result_df.to_pickle(path_settings.MEAN_VELOCITY_DF_PATH_2016)
+    result_df.to_csv(path_settings.MEAN_VELOCITY_DF_PATH_2016, index=False)
 
 
 def concat_jobs_2019(job=None):
@@ -167,7 +167,7 @@ def concat_jobs_2019(job=None):
     result_df = result_df.groupby(["time", "age"])["velocity"].mean().reset_index()
 
     # save df
-    result_df.to_pickle(path_settings.MEAN_VELOCITY_DF_PATH_2019)
+    result_df.to_csv(path_settings.MEAN_VELOCITY_DF_PATH_2019, index=False)
 
 # set sys path
 sys.path.append(str(Path("mean_velocity_per_age_group.py").resolve().parents[1]))
