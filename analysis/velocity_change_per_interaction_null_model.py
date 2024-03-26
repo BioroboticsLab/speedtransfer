@@ -191,7 +191,9 @@ def concat_jobs_2016(job=None):
     )
 
     # save interaction dataframe
-    interaction_df.to_csv(path_settings.INTERACTION_SIDE_0_DF_PATH_2016_NULL_MODEL, index=False)
+    interaction_df.to_csv(
+        path_settings.INTERACTION_SIDE_0_DF_PATH_2016_NULL_MODEL, index=False
+    )
 
 
 def concat_jobs_2019(job=None):
@@ -222,11 +224,15 @@ def concat_jobs_2019(job=None):
     )
 
     # save interaction dataframe
-    interaction_df.to_csv(path_settings.INTERACTION_SIDE_0_DF_PATH_2019_NULL_MODEL, index=False)
+    interaction_df.to_csv(
+        path_settings.INTERACTION_SIDE_0_DF_PATH_2019_NULL_MODEL, index=False
+    )
 
 
 # set sys path
-sys.path.append(str(Path("velocity_change_per_interaction_null_model.py").resolve().parents[1]))
+sys.path.append(
+    str(Path("velocity_change_per_interaction_null_model.py").resolve().parents[1])
+)
 
 # create job
 job = SLURMJob("velocity_change_per_interaction_null_2019_side0", "/scratch/juliam98/")

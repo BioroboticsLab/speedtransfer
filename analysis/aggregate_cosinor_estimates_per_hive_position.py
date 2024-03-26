@@ -32,7 +32,9 @@ def set_parameters(year: int, side: int) -> tuple[str, tuple[int, int], str]:
             interaction_df_path = path_settings.INTERACTION_SIDE_1_DF_PATH_2016
             save_to = path_settings.DIST_EXIT_SIDE_1_DF_PATH_2016
         else:
-            assert ValueError(f"No data for the side '{side}' available. Possible options are '0' and '1'.")
+            assert ValueError(
+                f"No data for the side '{side}' available. Possible options are '0' and '1'."
+            )
     elif year == 2019:
         exit_pos = (5, 264)
         if side == 0:
@@ -42,9 +44,13 @@ def set_parameters(year: int, side: int) -> tuple[str, tuple[int, int], str]:
             interaction_df_path = path_settings.INTERACTION_SIDE_1_DF_PATH_2019
             save_to = path_settings.DIST_EXIT_SIDE_1_DF_PATH_2019
         else:
-            assert ValueError(f"No data for the side '{side}' available. Possible options are '0' and '1'.")
+            assert ValueError(
+                f"No data for the side '{side}' available. Possible options are '0' and '1'."
+            )
     else:
-        assert ValueError(f"No data for the year '{year}' available. Possible options are '2016' and '2019'.")
+        assert ValueError(
+            f"No data for the year '{year}' available. Possible options are '2016' and '2019'."
+        )
     return interaction_df_path, exit_pos, save_to
 
 
@@ -53,12 +59,20 @@ def map_phase_to_24_hours(interaction_df: pd.DataFrame, columns: list):
     Maps acrophase in radians to hours.
     """
     for column in columns:
-        interaction_df[column] = ((-24 * interaction_df[column] / (2 * np.pi)) + 12) % 24
+        interaction_df[column] = (
+            (-24 * interaction_df[column] / (2 * np.pi)) + 12
+        ) % 24
 
 
 if __name__ == "__main__":
     # set sys path and import path settings
-    sys.path.append(str(Path("aggregate_cosinor_estimates_per_hive_position.py").resolve().parents[1]))
+    sys.path.append(
+        str(
+            Path("aggregate_cosinor_estimates_per_hive_position.py")
+            .resolve()
+            .parents[1]
+        )
+    )
     import path_settings
 
     interaction_df_path, exit_pos, save_to = set_parameters(args.year, args.side)
@@ -88,7 +102,9 @@ if __name__ == "__main__":
     ]
 
     # aggregate per hive position and for each parameter calculate median, std and count
-    dist_agg_df = interaction_df.groupby(["x_pos_start_focal", "y_pos_start_focal"]).agg(
+    dist_agg_df = interaction_df.groupby(
+        ["x_pos_start_focal", "y_pos_start_focal"]
+    ).agg(
         theta_start_focal_median=("theta_start_focal", "median"),
         theta_start_focal_count=("theta_start_focal", "count"),
         theta_start_focal_std=("theta_start_focal", "std"),
