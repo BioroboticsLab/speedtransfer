@@ -5,6 +5,26 @@ import pickle
 import argparse
 from bb_rhythm import interactions, plotting
 
+"""
+This script iterates over all interactions, modeling both participating bees
+as rectangular masks and comupting the area of overlap between these two masks.
+Lastly, this information is also aggregated with the velocity change yielded
+by the given interaction.
+
+Example workflow for the analysis of 2019 data of side 0:
+
+    # First compute area of overlap for small batches of interactions in parallel.
+    point_of_interaction.py --year 2019 --side 0 --focal 0 --batch ${SLURM_ARRAY_TASK_ID}
+    point_of_interaction.py --year 2019 --side 0 --focal 1 --batch ${SLURM_ARRAY_TASK_ID}
+
+    # Then combine results from batches for each focal bee.
+    point_of_interaction.py --year 2019 --side 0 --focal 0
+    point_of_interaction.py --year 2019 --side 0 --focal 1
+
+    # Lastly combine results from both bees condsidered as focal.
+    point_of_interaction.py --year 2019 --side 0
+"""
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
@@ -62,7 +82,7 @@ def create_overlap_dicts(interaction_df, focal, batch, save_to):
     print("Saved.")
 
 
-def combine_overlaps(interaction_df, path, dest):
+def combine_overlaps(path, dest):
     """Merge pickled overlap dicts for all batches of data into one dict per focal bee.
 
     Args:
@@ -81,8 +101,6 @@ def combine_overlaps(interaction_df, path, dest):
 
         with open(dest, "wb") as handle:
             pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    return interaction_df
 
 
 def combine_dicts_for_both_bees(dict_path, n_interactions):
@@ -172,7 +190,7 @@ if __name__ == "__main__":
         save_to = os.path.join(
             data_path, f"overlaps_side{args.side}_bee{args.focal}.pkl"
         )
-        interaction_df = combine_overlaps(interaction_df, overlaps_folder, save_to)
+        combine_overlaps(interaction_df, overlaps_folder, save_to)
 
     # If neither batch number nor focal id is provided combine results for both focal bees.
     else:
