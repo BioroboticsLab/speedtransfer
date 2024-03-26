@@ -169,6 +169,7 @@ def concat_jobs_2019(job=None):
     # save df
     result_df.to_csv(path_settings.MEAN_VELOCITY_DF_PATH_2019, index=False)
 
+
 # set sys path
 sys.path.append(str(Path("mean_velocity_per_age_group.py").resolve().parents[1]))
 
