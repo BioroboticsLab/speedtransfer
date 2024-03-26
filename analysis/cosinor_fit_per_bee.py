@@ -176,7 +176,7 @@ def concat_jobs_2016(job=None):
     df = pd.concat(result_list)
 
     # save df
-    df.to_pickle(path_settings.COSINOR_DF_PATH_2016)
+    df.to_csv(path_settings.COSINOR_DF_PATH_2016, index=False)
 
 
 def concat_jobs_2019(job=None):
@@ -195,7 +195,7 @@ def concat_jobs_2019(job=None):
     df = pd.concat(result_list)
 
     # save df
-    df.to_pickle(path_settings.COSINOR_DF_PATH_2019)
+    df.to_csv(path_settings.COSINOR_DF_PATH_2019, index=False)
 
 
 # set sys path
