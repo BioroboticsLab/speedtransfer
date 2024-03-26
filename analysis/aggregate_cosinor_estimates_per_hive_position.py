@@ -2,11 +2,15 @@ import pandas as pd
 import numpy as np
 import math
 import sys
-import os
 import argparse
 from pathlib import Path
 
 import bb_rhythm.interactions
+
+"""
+This is a script for creating a dataframe of the parameters of a cosinor fit per hive position. For faster computation 
+the job can be run using the run_individual_job.sh which needs to be adapted accordingly.
+"""
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

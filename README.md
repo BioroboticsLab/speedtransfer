@@ -90,6 +90,25 @@ The model is created by taking the distribution of the start and end times of th
 bees at those times that the bees were detected in the hive at that time. These pairs of bees are considered as 
 "interacting" and their speed change is calculated.
 
+Each file contains at the end a slurmhelper job definition which needs to be adapted:
+```python
+# create job
+job = SLURMJob("foo_job_name", "foo_job_directory") # Choose job name and a directory where the job is stored
+job.map(run_job_2016, generate_jobs_2016()) # either _2016 or _2019
+
+# set job parameters for slurm settings
+job.qos = "standard"
+job.partition = "main,scavenger"
+job.max_memory = "{}GB".format(2)
+job.n_cpus = 1
+job.max_job_array_size = 5000
+job.time_limit = datetime.timedelta(minutes=60)
+job.concurrent_job_limit = 100
+job.custom_preamble = "#SBATCH --exclude=g[013-015],b[001-004],c[003-004],g[009-015]"
+job.exports = "OMP_NUM_THREADS=2,MKL_NUM_THREADS=2"
+job.set_postprocess_fun(concat_jobs_2016) # either _2016 or _2019
+```
+
 To create a slurmarray with these jobs:
 ```
 python foo.py --create
