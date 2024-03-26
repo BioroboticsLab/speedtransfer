@@ -107,4 +107,4 @@ if __name__ == "__main__":
     )
 
     # save pickle
-    dist_agg_df.to_csv(save_to)
+    dist_agg_df.to_csv(save_to, index=False)
