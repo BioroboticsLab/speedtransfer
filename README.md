@@ -21,6 +21,8 @@ patterns and interactions compared to null models and simulated data.
 The analysis was done for the period 01.08.-25.08.2016 and 20.08-14.09.2019, but can be easily adapted for different
 time periods and data sets.
 
+![overview_figure.png](figures%2Fimgs%2Foverview_figure.png)
+
 ## Structure
 The code contains several folders containing python scripts, jupyter notebooks or data.
 
@@ -60,28 +62,55 @@ path_settings.py
 
 ## Usage
 ### Analysis
-The scripts are 
+Here scripts are provided for bee rhythm behavior analysis, including data acquisition, preprocessing, and statistical 
+validation. It focuses on trajectory data collection, cosine curve fitting for activity patterns, interaction analysis, 
+and statistical validation, with most scripts designed for use with a Slurm manager.
 
-To create a slurmarray with the jobs:
-```
-python cosinor_fit_per_bee.py --create
-```
+The following scripts are designed with [slurmhelper](htttps://ww.github.com/walachey/slurmhelper) and provide the following functionalities:
+* [cosinor_fit_per_bee.py](analysis%2Fcosinor_fit_per_bee.py):  It implements a method to analyze the rhythm expression of individual bees by fitting 
+cosine curves to their movement speeds using a cosinor model. It divides for a given time period the speeds into 
+three-day intervals, calculates fits for each day, and determines the presence of a 24-hour rhythm based on statistical 
+significance tests, providing outputs such as phase mapping and fit strength indicators.
+* [mean_velocity_per_age_group.py](analysis%2Fmean_velocity_per_age_group.py): 
+This script generates a pandas dataframe containing the mean velocity data per 10 minutes for each age.
+* [social_network_interaction_tree.py](analysis%2Fsocial_network_interaction_tree.py): This script provides a method to capture the cumulative effect of sequential 
+interactions among bees, beyond just one-on-one interactions. It focuses on interactions occurring between 10 am and 3 pm, 
+selecting a random subset of significantly rhythmic bees younger than 5 days old, with peak activity after 12 pm. By recursively 
+tracing back interactions that positively impacted the focal bee's speed, it constructs a graph-theoretic tree structure, 
+with a maximum time window of 30 minutes between interactions and a maximum cascade duration of 2 hours.
+* [velocity_change_per_interaction.py](analysis%2Fvelocity_change_per_interaction.py): The script implements an interaction detection algorithm adn how the speed
+of a bee is affected by such an interaction. It identifies interactions between bees by simultaneous detection, requiring 
+a confidence threshold of 0.25 and thorax marking distances within 14 mm. If detections occur within a 1-second interval, 
+interactions are consolidated, accounting for overlapping bodies and counting both bees as focal once. For each interaction, 
+the script records information including timing, duration, partner age, rhythmicity features (phase and R²), speed change 
+after interaction, and overlap image indicating contact position and angle. Speed change is computed as the difference in 
+average speed before and after the interaction.
+* [velocity_change_per_interaction_null_model.py](analysis%2Fvelocity_change_per_interaction_null_model.py): This script implements the creation of an interaction null model.
+The model is created by taking the distribution of the start and end times of the interactions and selecting two random 
+bees at those times that the bees were detected in the hive at that time. These pairs of bees are considered as 
+"interacting" and their speed change is calculated.
 
+To create a slurmarray with these jobs:
+```
+python foo.py --create
+```
 To run it:
 ```
-python cosinor_fit_per_bee.py --autorun
+python foo.py --autorun
 ```
 or
 ```
-python cosinor_fit_per_bee.py --run
+python foo.py --run
 ```
-and to concatenate the output of the slurm arrays to a single dataframe.
+and to concatenate the output of the slurm arrays to a single dataframe. It is often the case that the output files are
+too large to be processed without slurm. If that is the case this line should be copied into the [run_individual_job.sh](analysis%2Frun_individual_job.sh)
+script and then run using it accordingly.
 ```
-python cosinor_fit_per_bee.py --postprocess
+python foo.py --postprocess
 ```
-
 More flags and further information can be found [here](htttps://ww.github.com/walachey/slurmhelper) or 
-with ``python foo.py --help``.
+with ```python foo.py --help```.
+
 
 ### Figures
 Dive into the jupyter notebooks which contain visualizations of the data. 
