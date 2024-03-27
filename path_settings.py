@@ -1,8 +1,18 @@
 import os
 
 """
-In this file the paths for the project are provided.
+In this file the paths and passwords for the project are provided.
 """
+
+# DB settings
+SSH_SERVER_ADDRESS_2016 = "bommel.imp.fu-berlin.de"
+SSH_USERNAME_2016 = "dbreader"
+SSH_PASSWORD_2016 = "dbreaderpw"
+REMOTE_BIND_ADDRESS_2016 = ("", 0000)
+SSH_SERVER_ADDRESS_2019 = "bommel.imp.fu-berlin.de"
+SSH_USERNAME_2019 = "dbreader"
+SSH_PASSWORD_2019 = "dbreaderpw"
+REMOTE_BIND_ADDRESS_2019 = ("", 0000)
 
 # Path to data
 DATA_PATH = os.path.join("..", "data")
@@ -64,38 +74,36 @@ INTERACTION_TREE_DF_PATH_2019 = os.path.join(
 )
 
 
-def set_parameters(year: int, side: int) -> tuple[str, tuple[int, int], str]:
+def set_parameters(year: int, side: int):
     """
     Set parameters for given year and side of hive.
     """
     if year == 2016:
         exit_pos = (0, 250)
+        cosinor_df_path = COSINOR_DF_PATH_2016
         if side == 0:
             interaction_df_path = INTERACTION_SIDE_0_DF_PATH_2016
-            save_to = os.path.join(
-                "..", "aggregated_results", "2016", "dist_exit_df_side0_2016.csv"
-            )
+            interaction_df_null_path = INTERACTION_SIDE_0_DF_PATH_2016_NULL_MODEL
+            interaction_tree_df_path = INTERACTION_TREE_DF_PATH_2016
         elif side == 1:
             interaction_df_path = INTERACTION_SIDE_1_DF_PATH_2016
-            save_to = os.path.join(
-                "..", "aggregated_results", "2016", "dist_exit_df_side1_2016.csv"
-            )
+            interaction_df_null_path = None
+            interaction_tree_df_path = None
         else:
             assert ValueError(
                 f"No data for the side '{side}' available. Possible options are '0' and '1'."
             )
     elif year == 2019:
         exit_pos = (5, 264)
+        cosinor_df_path = COSINOR_DF_PATH_2019
         if side == 0:
             interaction_df_path = INTERACTION_SIDE_0_DF_PATH_2019
-            save_to = os.path.join(
-                "..", "aggregated_results", "2019", "dist_exit_df_side0_2019.csv"
-            )
+            interaction_df_null_path = INTERACTION_SIDE_0_DF_PATH_2019_NULL_MODEL
+            interaction_tree_df_path = INTERACTION_TREE_DF_PATH_2019
         elif side == 1:
             interaction_df_path = INTERACTION_SIDE_1_DF_PATH_2019
-            save_to = os.path.join(
-                "..", "aggregated_results", "2019", "dist_exit_df_side1_2019.csv"
-            )
+            interaction_df_null_path = None
+            interaction_tree_df_path = None
         else:
             assert ValueError(
                 f"No data for the side '{side}' available. Possible options are '0' and '1'."
@@ -104,4 +112,4 @@ def set_parameters(year: int, side: int) -> tuple[str, tuple[int, int], str]:
         assert ValueError(
             f"No data for the year '{year}' available. Possible options are '2016' and '2019'."
         )
-    return interaction_df_path, exit_pos, save_to
+    return cosinor_df_path, interaction_df_path, interaction_df_null_path, interaction_tree_df_path, exit_pos
