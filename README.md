@@ -132,7 +132,8 @@ with ```python foo.py --help```.
 
 
 ### Figures
-Dive into the jupyter notebooks which contain visualizations of the data. 
+Dive into the jupyter notebooks which contain visualizations of the data.
+
 ``figure_panel_1.ipynb``:
 * movements speeds of the bees as a group or as an individual
 * cosinor fit

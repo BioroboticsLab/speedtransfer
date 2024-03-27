@@ -20,8 +20,10 @@ def run_job_2019(bee_id=None, dt_from=None, dt_to=None, velocity_df_path=None):
     import bb_behavior.db
     import bb_rhythm.rhythm
 
+    import path_settings
+
     # server settings
-    bb_behavior.db.base.server_address = "beequel.imp.fu-berlin.de:5432"
+    bb_behavior.db.base.server_address = f"{path_settings.SSH_SERVER_ADDRESS_2019}:{path_settings.REMOTE_BIND_ADDRESS_2019}"
     bb_behavior.db.base.set_season_berlin_2019()
     bb_behavior.db.base.beesbook_season_config[
         "bb_detections"
@@ -48,11 +50,14 @@ def run_job_2016(bee_id=None, dt_from=None, dt_to=None, velocity_df_path=None):
     import bb_behavior.db
     import bb_rhythm.rhythm
 
+    # job im imports
+    import path_settings
+
     with SSHTunnelForwarder(
-        "bommel.imp.fu-berlin.de",
-        ssh_username="dbreader",
-        ssh_password="dbreaderpw",
-        remote_bind_address=("127.0.0.1", 5432),
+        path_settings.SSH_SERVER_ADDRESS_2016,
+        ssh_username=path_settings.SSH_USERNAME_2016,
+        ssh_password=path_settings.SSH_PASSWORD_2016,
+        remote_bind_address=path_settings.REMOTE_BIND_ADDRESS_2016,
     ) as server:
         # server settings
         bb_behavior.db.base.server_address = "localhost:{}".format(
@@ -82,8 +87,10 @@ def generate_jobs_2019():
     import datetime
     import bb_behavior.db
 
+    import path_settings
+
     # server settings
-    bb_behavior.db.base.server_address = "beequel.imp.fu-berlin.de:5432"
+    bb_behavior.db.base.server_address = f"{path_settings.SSH_SERVER_ADDRESS_2019}:{path_settings.REMOTE_BIND_ADDRESS_2019}"
     bb_behavior.db.base.set_season_berlin_2019()
     bb_behavior.db.base.beesbook_season_config[
         "bb_detections"
@@ -109,11 +116,14 @@ def generate_jobs_2016():
     import bb_behavior.db.base
     import bb_behavior.db
 
+    # job im imports
+    import path_settings
+
     with SSHTunnelForwarder(
-        "bommel.imp.fu-berlin.de",
-        ssh_username="dbreader",
-        ssh_password="dbreaderpw",
-        remote_bind_address=("127.0.0.1", 5432),
+        path_settings.SSH_SERVER_ADDRESS_2016,
+        ssh_username=path_settings.SSH_USERNAME_2016,
+        ssh_password=path_settings.SSH_PASSWORD_2016,
+        remote_bind_address=path_settings.REMOTE_BIND_ADDRESS_2016,
     ) as server:
         # server settings
         bb_behavior.db.base.server_address = "localhost:{}".format(
@@ -174,7 +184,7 @@ def concat_jobs_2019(job=None):
 sys.path.append(str(Path("mean_velocity_per_age_group.py").resolve().parents[1]))
 
 # create job
-job = SLURMJob("BB2019_bayesian_velocity_mean_10min", "/home/juliam98/slurm_tryouts")
+job = SLURMJob("BB2019_bayesian_velocity_mean_10min", "2019")
 job.map(run_job_2019, generate_jobs_2019())
 
 # set job parameters

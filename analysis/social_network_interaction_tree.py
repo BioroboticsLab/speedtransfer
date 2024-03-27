@@ -147,7 +147,7 @@ def concat_jobs_2019(job=None):
 sys.path.append(str(Path("social_network_interaction_tree.py").resolve().parents[1]))
 
 # create job
-job = SLURMJob("interaction_model_tree_2016", "/scratch/juliam98/")
+job = SLURMJob("interaction_model_tree_2016", "2016")
 job.map(run_job, generate_jobs_2016())
 
 # set job parameters
