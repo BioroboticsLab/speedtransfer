@@ -90,7 +90,7 @@ The model is created by taking the distribution of the start and end times of th
 bees at those times that the bees were detected in the hive at that time. These pairs of bees are considered as 
 "interacting" and their speed change is calculated.
 
-Each file contains at the end a slurmhelper job definition which needs to be adapted:
+Some files contain a slurmhelper job definition at the end which needs to be adapted:
 ```python
 # create job
 job = SLURMJob("foo_job_name", "foo_job_directory") # Choose job name and a directory where the job is stored
@@ -129,6 +129,8 @@ python foo.py --postprocess
 ```
 More flags and further information can be found [here](htttps://ww.github.com/walachey/slurmhelper) or 
 with ```python foo.py --help```.
+
+The remaining pyhton scripts can be executed using either the ``run_individual_job.sh`` or the ``run_parallel_jobs.sh`` bash script. For more detailed instructions please refer to the respective python scripts.
 
 
 ### Figures
