@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import math
 import sys
+import os
 import argparse
 from pathlib import Path
 
@@ -21,41 +22,6 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
-
-
-def set_parameters(year: int, side: int) -> tuple[str, tuple[int, int], str]:
-    """
-    Set parameters for given year and side of hive.
-    """
-    if year == 2016:
-        exit_pos = (0, 250)
-        if side == 0:
-            interaction_df_path = path_settings.INTERACTION_SIDE_0_DF_PATH_2016
-            save_to = path_settings.DIST_EXIT_SIDE_0_DF_PATH_2016
-        elif side == 1:
-            interaction_df_path = path_settings.INTERACTION_SIDE_1_DF_PATH_2016
-            save_to = path_settings.DIST_EXIT_SIDE_1_DF_PATH_2016
-        else:
-            assert ValueError(
-                f"No data for the side '{side}' available. Possible options are '0' and '1'."
-            )
-    elif year == 2019:
-        exit_pos = (5, 264)
-        if side == 0:
-            interaction_df_path = path_settings.INTERACTION_SIDE_0_DF_PATH_2019
-            save_to = path_settings.DIST_EXIT_SIDE_0_DF_PATH_2019
-        elif side == 1:
-            interaction_df_path = path_settings.INTERACTION_SIDE_1_DF_PATH_2019
-            save_to = path_settings.DIST_EXIT_SIDE_1_DF_PATH_2019
-        else:
-            assert ValueError(
-                f"No data for the side '{side}' available. Possible options are '0' and '1'."
-            )
-    else:
-        assert ValueError(
-            f"No data for the year '{year}' available. Possible options are '2016' and '2019'."
-        )
-    return interaction_df_path, exit_pos, save_to
 
 
 def map_phase_to_24_hours(interaction_df: pd.DataFrame, columns: list):
@@ -79,7 +45,12 @@ if __name__ == "__main__":
     )
     import path_settings
 
-    interaction_df_path, exit_pos, save_to = set_parameters(args.year, args.side)
+    cosinor_df_path, interaction_df_path, interaction_df_null_path, interaction_tree_df_path, agg_data_path, exit_pos = path_settings.set_parameters(
+        args.year, args.side
+    )
+    save_to = os.path.join(
+        agg_data_path, f"dist_exit_df_side{args.side}_{args.year}.csv"
+    )
 
     # load interaction df
     interaction_df = pd.read_pickle(interaction_df_path)
