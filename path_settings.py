@@ -81,6 +81,7 @@ def set_parameters(year: int, side: int):
     if year == 2016:
         exit_pos = (0, 250)
         cosinor_df_path = COSINOR_DF_PATH_2016
+        agg_data_path = AGG_DATA_PATH_2016
         if side == 0:
             interaction_df_path = INTERACTION_SIDE_0_DF_PATH_2016
             interaction_df_null_path = INTERACTION_SIDE_0_DF_PATH_2016_NULL_MODEL
@@ -96,6 +97,7 @@ def set_parameters(year: int, side: int):
     elif year == 2019:
         exit_pos = (5, 264)
         cosinor_df_path = COSINOR_DF_PATH_2019
+        agg_data_path = AGG_DATA_PATH_2019
         if side == 0:
             interaction_df_path = INTERACTION_SIDE_0_DF_PATH_2019
             interaction_df_null_path = INTERACTION_SIDE_0_DF_PATH_2019_NULL_MODEL
@@ -112,4 +114,11 @@ def set_parameters(year: int, side: int):
         assert ValueError(
             f"No data for the year '{year}' available. Possible options are '2016' and '2019'."
         )
-    return cosinor_df_path, interaction_df_path, interaction_df_null_path, interaction_tree_df_path, exit_pos
+    return (
+        cosinor_df_path,
+        interaction_df_path,
+        interaction_df_null_path,
+        interaction_tree_df_path,
+        agg_data_path,
+        exit_pos,
+    )

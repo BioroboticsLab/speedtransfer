@@ -1,7 +1,7 @@
 import pandas as pd
-import os
 import numpy as np
 import sys
+import os
 import argparse
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -18,8 +18,115 @@ parser.add_argument(
 parser.add_argument(
     "--side", type=int, help="Which side of the hive to analyze the data for. (0 or 1)"
 )
+parser.add_argument(
+    "--binning_var",
+    type=str,
+    help="Which parameter the interactions are binned with. ('start_vel', 'age', 'phase', 'r_squared')",
+)
 
 args = parser.parse_args()
+
+
+def set_binning_var(binning_var_flag: str) -> dict:
+    if binning_var_flag == "start_vel":
+        return {
+            "velocity_start_focal": "Start velocity of focal bee [mm/s]",
+            "velocity_start_non_focal": "Start velocity of non-focal bee [mm/s]",
+        }
+    if binning_var_flag == "age":
+        return {
+            "age_focal": "Age of focal bee [d]",
+            "age_non_focal": "Age of non-focal bee [d]",
+        }
+    if binning_var_flag == "phase":
+        return {
+            "phase_focal": "Phase of focal bee [h]",
+            "phase_non_focal": "Phase of non-focal bee [h]",
+        }
+    if binning_var_flag == "r_squared":
+        return {
+            "r_squared_focal": "R² of focal bee",
+            "r_squared_non_focal": "R² of non-focal bee",
+        }
+    if binning_var_flag not in ["start_vel", "age", "phase", "r_squared"]:
+        assert ValueError(
+            f"data can't be binned by '{binning_var_flag}'. Possible options are 'start_vel', 'age', 'phase' or 'r_squared'."
+        )
+
+
+def prepare_df_for_testing(df: pd.DataFrame, binning_dict: dict, overlap: bool):
+    # combine df so all bees are considered as focal
+    df = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(df)
+    if overlap:
+        # filter overlap
+        df = bb_rhythm.interactions.filter_overlap(df)
+
+    # calculate start velocity
+    bb_rhythm.interactions.get_start_velocity(df)
+
+    # subset
+    df = df.loc[
+        :,
+        list(binning_dict.keys())
+        + ["vel_change_bee_focal", "vel_change_bee_non_focal"],
+    ]
+
+    # filter and replace nan
+    df.replace({-np.inf: np.nan, np.inf: np.nan}, inplace=True)
+    df.dropna(inplace=True)
+
+    # add bins
+    binning = bb_rhythm.utils.Binning(
+        bin_name="bins_focal", bin_parameter=list(binning_dict.keys())[0]
+    )
+    df = binning.add_bins_to_df(
+        df, n_bins=6, step_size=None, bin_max_n=None, bin_labels=None
+    )
+    binning = bb_rhythm.utils.Binning(
+        bin_name="bins_non_focal", bin_parameter=list(binning_dict.keys())[1]
+    )
+    df = binning.add_bins_to_df(
+        df, n_bins=6, step_size=None, bin_max_n=None, bin_labels=None
+    )
+    return df
+
+
+def sample_sizes(df: pd.DataFrame) -> dict:
+    sample_size_dict = (
+        df[["bins_focal", "bins_non_focal", "vel_change_bee_focal"]]
+        .groupby(["bins_focal", "bins_non_focal"])
+        .count()
+        .to_dict()
+    )
+    return sample_size_dict
+
+
+def extract_test_stats(
+    test_results: dict, sample_sizes: dict, test_name: str
+) -> pd.DataFrame:
+    p_values = []
+    test_statistics = []
+    sample_size = []
+    bin_pair = []
+    for key, value in test_results:
+        bin_pair.append(key)
+        p_values.append(value.pvalue)
+        test_statistics.append(value.statistic)
+        if len(key[0]) == 1:
+            sample_size.append(sample_sizes[key])
+        if len(key[0]) == 2:
+            sample_size.append((sample_sizes[key[0]], sample_sizes[key[1]]))
+    test_stats_df = pd.DataFrame(
+        {
+            "test_name": len(p_values) * [test_name],
+            "test_statistic": test_statistics,
+            "p_value": p_values,
+            "sample_size": sample_sizes,
+            "bin_pair": bin_pair,
+        }
+    )
+    return test_stats_df
+
 
 if __name__ == "__main__":
     # set sys path and import path settings
@@ -28,223 +135,80 @@ if __name__ == "__main__":
     )
     import path_settings
 
-    cosinor_df_path, interaction_df_path, interaction_df_null_path, interaction_tree_df_path, exit_pos = path_settings.set_parameters(
+    cosinor_df_path, interaction_df_path, interaction_df_null_path, interaction_tree_df_path, agg_data_path, exit_pos = path_settings.set_parameters(
         args.year, args.side
     )
 
+    # get binning labels and set variables
+    binning_dict = set_binning_var(args.binning_var)
+
     # load null model frame
-    df_null = pd.read_pickle(
-        os.path.join(path, "null_model_interactions_2019_cam_0.pkl")
-    )
+    df_null = pd.read_csv(interaction_df_null_path)
 
-    # clean df
-    df_null.drop(
-        columns=[
-            "x_pos_start_bee0",
-            "y_pos_start_bee0",
-            "theta_start_bee0",
-            "x_pos_start_bee1",
-            "y_pos_start_bee1",
-            "theta_start_bee1",
-            "x_pos_end_bee0",
-            "y_pos_end_bee0",
-            "theta_end_bee0",
-            "x_pos_end_bee1",
-            "y_pos_end_bee1",
-            "theta_end_bee1",
-            "age_bee0",
-            "age_bee1",
-            "amplitude_bee0",
-            "p_value_bee0",
-            "amplitude_bee1",
-            "p_value_bee1",
-        ],
-        inplace=True,
-    )
-    df_null.replace({-np.inf: np.nan, np.inf: np.nan}, inplace=True)
-    df_null.dropna(inplace=True)
-
-    # combine df so all bees are considered as focal
-    df_null = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(
-        df_null
-    )
-    bb_rhythm.interactions.get_start_velocity(df_null)
-
-    # add bins
-    binning = bb_rhythm.utils.Binning(
-        bin_name="bins_focal", bin_parameter="velocity_start_focal"
-    )
-    df_null = binning.add_bins_to_df(
-        df_null, n_bins=6, step_size=None, bin_max_n=None, bin_labels=None
-    )
-    binning = bb_rhythm.utils.Binning(
-        bin_name="bins_non_focal", bin_parameter="velocity_start_non_focal"
-    )
-    df_null = binning.add_bins_to_df(
-        df_null, n_bins=6, step_size=None, bin_max_n=None, bin_labels=None
-    )
+    # clean df and add bins
+    df_null = prepare_df_for_testing(df_null.copy(), binning_dict, overlap=False)
 
     # load interaction frame
-    interaction_path = (
-        "/scratch/weronik22/data/2019/interactions_no_duplicates_side2.pkl"
-    )
-    interaction_df = pd.read_pickle(interaction_path)
-    # clean df
-    interaction_df.drop(
-        columns=[
-            "bee_id0",
-            "bee_id1",
-            "interaction_start",
-            "interaction_end",
-            "x_pos_start_bee0",
-            "y_pos_start_bee0",
-            "theta_start_bee0",
-            "x_pos_start_bee1",
-            "y_pos_start_bee1",
-            "theta_start_bee1",
-            "x_pos_end_bee0",
-            "y_pos_end_bee0",
-            "theta_end_bee0",
-            "x_pos_end_bee1",
-            "y_pos_end_bee1",
-            "theta_end_bee1",
-            "age_bee0",
-            "age_bee1",
-            "x_trans_focal_bee0",
-            "y_trans_focal_bee0",
-            "theta_trans_focal_bee0",
-            "x_trans_focal_bee1",
-            "y_trans_focal_bee1",
-            "theta_trans_focal_bee1",
-            "is_bursty_bee0",
-            "is_bursty_bee1",
-            "is_foraging_bee0",
-            "is_foraging_bee1",
-            "amplitude_bee0",
-            "phase_bee0",
-            "p_value_bee0",
-            "fit_type_x",
-            "amplitude_bee1",
-            "phase_bee1",
-            "p_value_bee1",
-            "fit_type_y",
-        ],
-        inplace=True,
-    )
-    interaction_df.replace({-np.inf: np.nan, np.inf: np.nan}, inplace=True)
-    interaction_df.dropna(inplace=True)
+    interaction_df = pd.read_csv(interaction_df_path)
 
-    # filter overlap
-    interaction_df = bb_rhythm.interactions.filter_overlap(interaction_df)
-
-    # combine df so all bees are considered as focal
-    interaction_df = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(
-        interaction_df
-    )
-    bb_rhythm.interactions.get_start_velocity(interaction_df)
-
-    # add bins
-    binning = bb_rhythm.utils.Binning(
-        bin_name="bins_focal", bin_parameter="velocity_start_focal"
-    )
-    interaction_df = binning.add_bins_to_df(
-        interaction_df, n_bins=6, step_size=None, bin_max_n=None, bin_labels=None
+    # clean df and add bins
+    interaction_df = prepare_df_for_testing(
+        interaction_df.copy(), binning_dict, overlap=True
     )
 
-    binning = bb_rhythm.utils.Binning(
-        bin_name="bins_non_focal", bin_parameter="velocity_start_non_focal"
-    )
-    interaction_df = binning.add_bins_to_df(
-        interaction_df, n_bins=6, step_size=None, bin_max_n=None, bin_labels=None
-    )
+    # get sample size
+    sample_sizes_dict = sample_sizes(interaction_df).update(sample_sizes(df_null))
 
     # test if normally distributed
-    normally_distributed_bins_test_null = bb_rhythm.statistics.test_normally_distributed_bins(
-        df_null
+    normally_distributed_bins_test_null = extract_test_stats(
+        bb_rhythm.statistics.test_normally_distributed_bins(df_null),
+        sample_sizes_dict,
+        "Kalgomorov Smirnoff test",
     )
-    normally_distributed_bins_test_interaction = bb_rhythm.statistics.test_normally_distributed_bins(
-        interaction_df
+    normally_distributed_bins_test_interaction = extract_test_stats(
+        bb_rhythm.statistics.test_normally_distributed_bins(interaction_df),
+        sample_sizes_dict,
+        "Kalgomorov Smirnoff test",
     )
 
     # test if equal variance
-    equal_variance_comparison_bins_test = bb_rhythm.statistics.test_for_comparison_bins(
-        df_null,
-        interaction_df,
-        bb_rhythm.statistics.test_bins_have_equal_variance,
-        args=(True, "mean"),
+    equal_variance_comparison_bins_test = extract_test_stats(
+        bb_rhythm.statistics.test_for_comparison_bins(
+            df_null,
+            interaction_df,
+            bb_rhythm.statistics.test_bins_have_equal_variance,
+            args=(True, "mean"),
+        ),
+        sample_sizes_dict,
+        "Levene test",
     )
 
     # test if significantly different mean
-    unequal_mean_comparison_bins_test = bb_rhythm.statistics.test_for_comparison_bins(
-        df_null,
-        interaction_df,
-        bb_rhythm.statistics.test_bins_have_unequal_mean,
-        args=(True, False),
+    unequal_mean_comparison_bins_test = extract_test_stats(
+        bb_rhythm.statistics.test_for_comparison_bins(
+            df_null,
+            interaction_df,
+            bb_rhythm.statistics.test_bins_have_unequal_mean,
+            args=(True, False),
+        ),
+        sample_sizes_dict,
+        "Welch test",
     )
 
-    # plot p-values
-    fig, axs = plt.subplots(2, 2, figsize=(24, 18))
-    bb_rhythm.plotting.plot_p_values_per_bin_from_test(
-        normally_distributed_bins_test_null,
-        ax=axs[0, 0],
-        norm=(0, 0.35),
-        pkl_path="~/../../scratch/juliam98/data/2019/statistics/normal_test_p_value_2019_null_start_vel",
+    # save test results
+    save_to = os.path.join(
+        agg_data_path, f"test_vel_change_side{args.side}_{args.year}_{args.binning_var}"
     )
-    axs[0, 0].set_title("P-values KS-test normally distributed null model")
-    bb_rhythm.plotting.plot_p_values_per_bin_from_test(
-        normally_distributed_bins_test_interaction,
-        ax=axs[0, 1],
-        norm=(0, 0.35),
-        pkl_path="~/../../scratch/juliam98/data/2019/statistics/normal_test_p_value_2019_start_vel",
+    test_stats_df = pd.concat(
+        [
+            normally_distributed_bins_test_null,
+            normally_distributed_bins_test_interaction,
+            equal_variance_comparison_bins_test,
+            unequal_mean_comparison_bins_test,
+        ],
+        ignore_index=True,
     )
-    axs[0, 1].set_title("P-values KS-test normally distributed interactions")
-    bb_rhythm.plotting.plot_p_values_per_bin_from_test(
-        equal_variance_comparison_bins_test,
-        ax=axs[1, 0],
-        norm=(0, 0.35),
-        pkl_path="~/../../scratch/juliam98/data/2019/statistics/variance_test_p_value_2019_start_vel",
-    )
-    axs[1, 0].set_title("P-values Levene's test equal variance")
-    bb_rhythm.plotting.plot_p_values_per_bin_from_test(
-        unequal_mean_comparison_bins_test,
-        ax=axs[1, 1],
-        norm=(0, 0.35),
-        pkl_path="~/../../scratch/juliam98/data/2019/statistics/t_test_p_value_2019_start_vel",
-    )
-    axs[1, 1].set_title("P-values t-test")
-    plt.tight_layout()
-    plt.savefig("imgs/test_overview_2019_start_vel.png")
-    plt.savefig("imgs/test_overview_2019_start_vel.svg")
+    test_stats_df.to_csv(f"{save_to}.csv")
 
-    import seaborn as sns
-    from matplotlib import rcParams
-
-    # plot distribution per bin as histogram
-    rcParams.update({"figure.autolayout": True})
-    g = sns.FacetGrid(
-        df_null[["bins_non_focal", "bins_focal", "vel_change_bee_focal"]],
-        col="bins_focal",
-        row="bins_non_focal",
-        margin_titles=True,
-        row_order=sorted(df_null["bins_non_focal"].unique()),
-    )
-    g.map(sns.histplot, "vel_change_bee_focal", kde=True)
-    g.figure.subplots_adjust(wspace=0.02, hspace=0.02)
-    plt.savefig(
-        "~/../../scratch/juliam98/data/2019/statistics/test_overview_2019_start_vel_dist_null.png"
-    )
-
-    # plot distribution per bin as histogram
-    rcParams.update({"figure.autolayout": True})
-    g = sns.FacetGrid(
-        interaction_df[["bins_non_focal", "bins_focal", "vel_change_bee_focal"]],
-        col="bins_focal",
-        row="bins_non_focal",
-        margin_titles=True,
-        row_order=sorted(interaction_df["bins_non_focal"].unique()),
-    )
-    g.map(sns.histplot, "vel_change_bee_focal", kde=True)
-    g.figure.subplots_adjust(wspace=0.02, hspace=0.02)
-    plt.savefig(
-        "~/../../scratch/juliam98/data/2019/statistics/test_overview_2019_start_vel_dist.png"
-    )
+    # get summary of each test
+    test_stats_df.groupby("test_name").apply(lambda x: print(x.describe()))
