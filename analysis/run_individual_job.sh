@@ -1,3 +1,4 @@
+#!/bin/bash -l
 #SBATCH -D ./
 
 ### SPECIFY WHERE THE OUTPUT WILL BE SAVED TO.
