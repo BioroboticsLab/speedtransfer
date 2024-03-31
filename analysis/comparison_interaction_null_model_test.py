@@ -54,12 +54,12 @@ def set_binning_var(binning_var_flag: str) -> dict:
 
 
 def prepare_df_for_testing(df: pd.DataFrame, binning_dict: dict, overlap: bool):
-    # combine df so all bees are considered as focal
-    #df = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(df)
     if overlap:
         # filter overlap
-        df["overlapping"] = [True]*len(df)
         df = bb_rhythm.interactions.filter_overlap(df)
+
+    # combine df so all bees are considered as focal
+    df = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(df)
 
     # calculate start velocity
     bb_rhythm.interactions.get_start_velocity(df)
