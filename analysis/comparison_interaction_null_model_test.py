@@ -4,7 +4,6 @@ import sys
 import os
 import argparse
 from pathlib import Path
-import matplotlib.pyplot as plt
 
 import bb_rhythm.interactions
 import bb_rhythm.utils
@@ -56,9 +55,10 @@ def set_binning_var(binning_var_flag: str) -> dict:
 
 def prepare_df_for_testing(df: pd.DataFrame, binning_dict: dict, overlap: bool):
     # combine df so all bees are considered as focal
-    df = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(df)
+    #df = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(df)
     if overlap:
         # filter overlap
+        df["overlapping"] = [True]*len(df)
         df = bb_rhythm.interactions.filter_overlap(df)
 
     # calculate start velocity
@@ -97,8 +97,16 @@ def sample_sizes(df: pd.DataFrame) -> dict:
         .groupby(["bins_focal", "bins_non_focal"])
         .count()
         .to_dict()
-    )
+    )["vel_change_bee_focal"]
     return sample_size_dict
+
+
+def get_in_case_reverse_tuple(key_tuple, sample_sizes):
+    try:
+        s_size = sample_sizes[key_tuple]
+    except KeyError:
+        s_size = sample_sizes[(key_tuple[1], key_tuple[0])]
+    return s_size
 
 
 def extract_test_stats(
@@ -108,20 +116,20 @@ def extract_test_stats(
     test_statistics = []
     sample_size = []
     bin_pair = []
-    for key, value in test_results:
+    for key, value in test_results.items():
         bin_pair.append(key)
         p_values.append(value.pvalue)
         test_statistics.append(value.statistic)
-        if len(key[0]) == 1:
-            sample_size.append(sample_sizes[key])
-        if len(key[0]) == 2:
-            sample_size.append((sample_sizes[key[0]], sample_sizes[key[1]]))
+        if type(key[0]) == str:
+            sample_size.append(get_in_case_reverse_tuple(key, sample_sizes))
+        if not type(key[0]) == str:
+            sample_size.append((get_in_case_reverse_tuple(key[0], sample_sizes), get_in_case_reverse_tuple(key[1], sample_sizes)))
     test_stats_df = pd.DataFrame(
         {
             "test_name": len(p_values) * [test_name],
             "test_statistic": test_statistics,
             "p_value": p_values,
-            "sample_size": sample_sizes,
+            "sample_size": sample_size,
             "bin_pair": bin_pair,
         }
     )
@@ -136,7 +144,7 @@ if __name__ == "__main__":
     import path_settings
 
     cosinor_df_path, interaction_df_path, interaction_df_null_path, interaction_tree_df_path, agg_data_path, exit_pos = path_settings.set_parameters(
-        args.year, args.side
+         args.year, args.side
     )
 
     # get binning labels and set variables
@@ -157,16 +165,17 @@ if __name__ == "__main__":
     )
 
     # get sample size
-    sample_sizes_dict = sample_sizes(interaction_df).update(sample_sizes(df_null))
+    sample_sizes_dict = sample_sizes(interaction_df)
+    sample_sizes_dict.update(sample_sizes(df_null))
 
     # test if normally distributed
     normally_distributed_bins_test_null = extract_test_stats(
-        bb_rhythm.statistics.test_normally_distributed_bins(df_null),
+        bb_rhythm.statistics.test_normally_distributed_bins(df_null, printing=False),
         sample_sizes_dict,
         "Kalgomorov Smirnoff test",
     )
     normally_distributed_bins_test_interaction = extract_test_stats(
-        bb_rhythm.statistics.test_normally_distributed_bins(interaction_df),
+        bb_rhythm.statistics.test_normally_distributed_bins(interaction_df, printing=False),
         sample_sizes_dict,
         "Kalgomorov Smirnoff test",
     )
@@ -178,6 +187,7 @@ if __name__ == "__main__":
             interaction_df,
             bb_rhythm.statistics.test_bins_have_equal_variance,
             args=(True, "mean"),
+            printing=False,
         ),
         sample_sizes_dict,
         "Levene test",
@@ -190,6 +200,7 @@ if __name__ == "__main__":
             interaction_df,
             bb_rhythm.statistics.test_bins_have_unequal_mean,
             args=(True, False),
+            printing=False,
         ),
         sample_sizes_dict,
         "Welch test",
@@ -211,4 +222,4 @@ if __name__ == "__main__":
     test_stats_df.to_csv(f"{save_to}.csv")
 
     # get summary of each test
-    test_stats_df.groupby("test_name").apply(lambda x: print(x.describe()))
+    test_stats_df.groupby("test_name").apply(lambda x: print(x.test_name.iloc[0], "\n", x.describe()))
