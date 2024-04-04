@@ -10,6 +10,18 @@ import bb_rhythm.utils
 import bb_rhythm.statistics
 import bb_rhythm.plotting
 
+"""
+This script groups the interaction data frame and its null model in 6-equally sized bins
+and compares them statistically. For that a Welch-test is performed and its precondition
+(normality and unequal variance of samples) is tested. Different parameters can be chosen
+for binning the data frame e.g. start velocity, age, phase and r_squared.
+
+Example workflow for the analysis of 2019 data of side 0:
+
+    # First compute area of overlap for small batches of interactions in parallel.
+    comparison_interaction_null_model_test.py --year 2019 --side 0 --binning_var 'start_vel'
+"""
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
