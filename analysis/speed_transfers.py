@@ -45,6 +45,10 @@ def read_necessary_data(year, null):
         "rel_change_bee1",
         "phase_bee0",
         "phase_bee1",
+        "r_squared_bee0",
+        "r_squared_bee1",
+        "age_bee0",
+        "age_bee1",
     ]
     if not null:
         col_subset.append("overlapping")
@@ -71,7 +75,7 @@ def make_both_bees_focal(interactions_df):
     """Combine data such that both bees are considered focal once for each interaction."""
     df = pd.DataFrame()
 
-    for var in ["vel_change", "start_vel", "phase"]:
+    for var in ["vel_change", "start_vel", "phase", "r_squared", "age"]:
         df["%s_focal" % var] = pd.concat(
             [interactions_df["%s_bee0" % var], interactions_df["%s_bee1" % var]]
         )
@@ -102,7 +106,7 @@ def create_combination_matrix(df, var):
     """
     return pd.pivot_table(
         data=df,
-        values="vel_change_bee_focal",
+        values="vel_change_focal",
         index="%s_non_focal" % var,
         columns="%s_focal" % var,
         aggfunc="median",
@@ -111,17 +115,17 @@ def create_combination_matrix(df, var):
 
 if __name__ == "__main__":
     # Prepare data.
-    interactions_df = read_necessary_data()
+    interactions_df = read_necessary_data(year, null)
     combined_df = make_both_bees_focal(interactions_df)
 
     # Save aggregated results.
-    for var in ["phase", "start_vel"]:
+    for var in ["phase", "start_vel", "r_squared", "age"]:
         combined_df = bin_quantiles(combined_df, var)
         combination_matrix = create_combination_matrix(combined_df, var)
-        suffix = [var, year]
+        suffix = [var, str(args.side)]
         if null:
             suffix.append("null")
         save_to = os.path.join(
-            os.pardir, "aggregated_results", f"speed_trans_vs_{'_'.join(suffix)}.npy"
+            os.pardir, "aggregated_results", str(year), f"speed_trans_vs_{'_'.join(suffix)}.npy"
         )
         np.save(save_to, combination_matrix)

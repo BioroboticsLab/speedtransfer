@@ -64,13 +64,13 @@ def create_overlap_dicts(interaction_df, focal, batch, save_to):
         "Processing %d interactions in batch %d for focal bee %d."
         % (len(interaction_df), batch, focal)
     )
-
+    
     # Only use necessary columns.
     interaction_df = interaction_df[
         [
-            "focal%d_x_trans" % focal,
-            "focal%d_y_trans" % focal,
-            "focal%d_theta_trans" % focal,
+            "x_trans_focal_bee%d" % focal,
+            "y_trans_focal_bee%d" % focal,
+            "theta_trans_focal_bee%d" % focal,
         ]
     ]
 
@@ -86,21 +86,19 @@ def combine_overlaps(path, dest):
     """Merge pickled overlap dicts for all batches of data into one dict per focal bee.
 
     Args:
-        interaction_df (pd.DataFrame): Interaction data.
         path (str): Directory where all the batched overlaps are saved.
         dest (str): File path to which the combined dict will be saved to.
-
-    Returns:
-        pd.DataFrame: Interaction data with added overlap column.
     """
-
+    combined_dict = {}
+    
     # Combine results from each batch of data.
     for i in range(100):
         with open(os.path.join(path, "batch%02d.pkl" % i), "rb") as handle:
             d = pickle.load(handle)
-
-        with open(dest, "wb") as handle:
-            pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            combined_dict.update(d)
+            
+    with open(dest, "wb") as handle:
+        pickle.dump(combined_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def combine_dicts_for_both_bees(dict_path, n_interactions):
@@ -119,6 +117,8 @@ def combine_dicts_for_both_bees(dict_path, n_interactions):
         os.path.join(dict_path, f"overlaps_side{args.side}_bee0.pkl"), "rb"
     ) as handle:
         overlap_dict_0 = pickle.load(handle)
+        print("len0")
+        print(len(overlap_dict_0))
         for idx in overlap_dict_0:
             overlap_dict[idx] = overlap_dict_0[idx]
 
@@ -126,9 +126,11 @@ def combine_dicts_for_both_bees(dict_path, n_interactions):
         os.path.join(dict_path, f"overlaps_side{args.side}_bee1.pkl"), "rb"
     ) as handle:
         overlap_dict_1 = pickle.load(handle)
+        print("len1")
+        print(len(overlap_dict_1))
         for idx in overlap_dict_1:
             overlap_dict[idx + n_interactions] = overlap_dict_1[idx]
-
+            
     return overlap_dict
 
 
@@ -149,6 +151,10 @@ def get_vel_change_per_point_of_interaction(
     combined_df = interactions.combine_bees_from_interaction_df_to_be_all_focal(
         interaction_df
     )
+
+    # Reset index so interaction indices correspond to overlap indices.
+    combined_df.reset_index(inplace=True, drop=True)
+    
     counts, avg_vel = interactions.compute_interaction_points(
         combined_df, overlap_dict, whose_change=whose_change
     )
@@ -158,7 +164,8 @@ def get_vel_change_per_point_of_interaction(
     save_to = os.path.join(
         os.pardir,
         "aggregated_results",
-        f"vel_change_per_body_pos_{args.year}_{whose_change}.csv",
+        str(args.year),
+        f"speed_change_per_body_pos_{whose_change}_side{args.side}.csv",
     )
     df.to_csv(save_to)
 
@@ -170,11 +177,11 @@ if __name__ == "__main__":
     overlaps_folder = os.path.join(
         data_path, f"overlaps_side{args.side}_bee{args.focal}"
     )
-
+    
     # Read interaction data.
     interaction_df = pd.read_pickle(interactions_path)
     n_interactions = len(interaction_df)
-
+    
     # Create dicts with overlaps in parallel. (requires ca. 40G RAM per job)
     if args.batch != None:
 
@@ -190,11 +197,19 @@ if __name__ == "__main__":
         save_to = os.path.join(
             data_path, f"overlaps_side{args.side}_bee{args.focal}.pkl"
         )
-        combine_overlaps(interaction_df, overlaps_folder, save_to)
+        combine_overlaps(overlaps_folder, save_to)
 
     # If neither batch number nor focal id is provided combine results for both focal bees.
     else:
-        overlap_dict = combine_dicts_for_both_bees(data_path, n_interactions)
+        overlap_dict_path = os.path.join(data_path, f"overlaps_side{args.side}.pkl")
+        if os.path.exists(overlap_dict_path):
+            with open(overlap_dict_path, "rb") as handle:
+                overlap_dict = pickle.load(handle)
+        else:
+            overlap_dict = combine_dicts_for_both_bees(data_path, n_interactions)
+            with open(overlap_dict_path, "wb") as handle:
+                pickle.dump(overlap_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
         # Compute velocity change depending on area of overlap and save to aggregated results.
         get_vel_change_per_point_of_interaction(
             interaction_df, overlap_dict, whose_change="focal"
