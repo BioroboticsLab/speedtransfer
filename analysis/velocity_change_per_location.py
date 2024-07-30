@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import pickle
 import argparse
-from bb_rhythm import interactions, plotting, rhythm
+from bb_rhythm import rhythm
 
 import sys
 
@@ -19,8 +19,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-path, exit_pos, save_to = path_settings.set_parameters(args.year, args.side)
-
+_, path, _, _, save_to, exit_pos = path_settings.set_parameters(args.year, args.side)
 
 def read_data(path):
     # Read interaction data.
@@ -50,31 +49,6 @@ def replace_time_with_hour(df):
     df["hour"] = df["interaction_start"].dt.hour
     df.drop(columns=["interaction_start"], inplace=True)
     return df
-
-
-def vstack_interactions(h_df, var_ls):
-    # Stack interaction data such that both bees are focal.
-    combined_df = pd.DataFrame()
-
-    # Set spatial resolution to 1mm^2.
-    combined_df["x_grid"] = (
-        pd.concat([h_df["x_pos_start_bee0"], h_df["x_pos_start_bee1"]])
-        .round(1)
-        .astype(int)
-    )
-    combined_df["y_grid"] = (
-        pd.concat([h_df["y_pos_start_bee0"], h_df["y_pos_start_bee1"]])
-        .round(1)
-        .astype(int)
-    )
-
-    # Keep hour column for filtering.
-    combined_df["hour"] = pd.concat([h_df["hour"], h_df["hour"]])
-
-    for var in var_ls:
-        combined_df[var] = pd.concat([h_df["%s_bee0" % var], h_df["%s_bee1" % var]])
-
-    return combined_df
 
 
 def swap_focal_bee(df):
@@ -169,7 +143,7 @@ def convert_grid_to_df(grid_3d):
     return pd.DataFrame(row_ls, columns=["x_grid", "y_grid", "hour", "vel_change"])
 
 
-def get_vel_ch_vs_dist(df):
+def get_vel_ch_vs_dist(df, aggfunc="mean"):
 
     # Calculate distance to exit.
     exit_x = exit_pos[0]
@@ -183,7 +157,7 @@ def get_vel_ch_vs_dist(df):
 
     # Create pivot for heatmap.
     pivot = pd.pivot_table(
-        df, index="dist", columns="hour", values="vel_change", aggfunc="mean"
+        df, index="dist", columns="hour", values="vel_change", aggfunc=aggfunc,
     )
 
     return pivot
@@ -192,19 +166,19 @@ def get_vel_ch_vs_dist(df):
 if __name__ == "__main__":
 
     var = "vel_change"
-    aggfunc = "median"
+    aggfunc = "mean"
     scale = False
 
     df = read_data(path)
     df = replace_time_with_hour(df)
     df = swap_focal_bee(df)
-
+    
     if scale:
         grid_3d = concat_grids_over_time(df, var, aggfunc, scale=scale)
         df = convert_grid_to_df(grid_3d)
 
-    vel_ch_vs_dist_and_hour = get_vel_ch_vs_dist(df)
+    vel_ch_vs_dist_and_hour = get_vel_ch_vs_dist(df, aggfunc)
     save_to = os.path.join(
-        os.pardir, "aggregated_results", args.year, "vel_change_per_dist_and_hour.npy"
+        os.pardir, "aggregated_results", str(args.year), "vel_change_per_dist_and_hour_grid.pkl"
     )
-    np.save(save_to, vel_ch_vs_dist_and_hour)
+    vel_ch_vs_dist_and_hour.to_pickle(save_to)
