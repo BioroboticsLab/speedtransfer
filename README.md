@@ -158,7 +158,7 @@ Dive into the jupyter notebooks which contain visualizations of the data.
 ## Simulation
 
 ## Data
-The data for the project can be found and downloaded [here](zenododdata). The data should be moved to the data folder to
+The data for the project can be found and downloaded [here](https://zenodo.org/records/10869728). The data should be moved to the data folder to
 have valid path imports in the scripts.
 
 ## Citation
