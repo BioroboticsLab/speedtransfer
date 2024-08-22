@@ -47,7 +47,7 @@ This folder contains aggregates of the data which are used for faster visualizin
 ```
 
 This file contains the output dataframes of the analysis scripts. The data is used for further analysis in the figure 
-notebooks. The data folder is currently empty but can be downloaded into the data directory [here](zenododata).
+notebooks. The data folder is currently empty but can be downloaded into the data directory [here](https://zenodo.org/records/10869728).
 ```
 \data
     \2016
