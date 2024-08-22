@@ -9,7 +9,7 @@ The goal of this project is to provide a comprehensive implementation of methods
 rhythmicity in bees which is handled in the paper [Speed transfer contributes to circadian activity](). The repository 
 is offering a toolkit for data acquisition, preprocessing, and analysis, focusing on the following key objectives:
 1) Data Acquisition and Preprocessing: Implement methods for collecting trajectory data of marked bees using the 
-[BeesBook](10.3389/frobt.2018.00035) system. 
+[BeesBook](https://github.com/BioroboticsLab/bb_main/wiki) system. 
 2) Cosinor Model of Individuals’ Activity: Develop algorithms for fitting cosine curves to individual bee movement 
 speeds to analyze rhythmic expression and detect 24-hour activity patterns.
 3) Interaction Modeling: Implement techniques for detecting and analyzing interactions between bees based on trajectory 
