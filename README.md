@@ -6,7 +6,8 @@ Preprint:
 
 ## Goal
 The goal of this project is to provide a comprehensive implementation of methods for studying and analyzing behavioral 
-rhythmicity in bees which is handled in the paper [Speed transfer contributes to circadian activity](). The repository 
+rhythmicity in bees which is handled in the paper [Collective flow of circadian clock information in honeybee
+colonies](https://www.biorxiv.org/content/biorxiv/early/2024/07/30/2024.07.29.605620.full.pdf). The repository 
 is offering a toolkit for data acquisition, preprocessing, and analysis, focusing on the following key objectives:
 1) Data Acquisition and Preprocessing: Implement methods for collecting trajectory data of marked bees using the 
 [BeesBook](https://github.com/BioroboticsLab/bb_main/wiki) system. 
