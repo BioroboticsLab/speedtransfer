@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import os
-import pickle
 import argparse
 from bb_rhythm import rhythm
 
@@ -10,16 +9,6 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import path_settings
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
-)
-parser.add_argument(
-    "--side", type=int, help="Which side of the hive to analyze the data for. (0 or 1)"
-)
-args = parser.parse_args()
-
-_, path, _, _, save_to, exit_pos = path_settings.set_parameters(args.year, args.side)
 
 def read_data(path):
     # Read interaction data.
@@ -144,7 +133,6 @@ def convert_grid_to_df(grid_3d):
 
 
 def get_vel_ch_vs_dist(df, aggfunc="mean"):
-
     # Calculate distance to exit.
     exit_x = exit_pos[0]
     exit_y = exit_pos[1]
@@ -157,13 +145,31 @@ def get_vel_ch_vs_dist(df, aggfunc="mean"):
 
     # Create pivot for heatmap.
     pivot = pd.pivot_table(
-        df, index="dist", columns="hour", values="vel_change", aggfunc=aggfunc,
+        df,
+        index="dist",
+        columns="hour",
+        values="vel_change",
+        aggfunc=aggfunc,
     )
 
     return pivot
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
+    )
+    parser.add_argument(
+        "--side",
+        type=int,
+        help="Which side of the hive to analyze the data for. (0 or 1)",
+    )
+    args = parser.parse_args()
+
+    _, path, _, _, save_to, exit_pos = path_settings.set_parameters(
+        args.year, args.side
+    )
 
     var = "vel_change"
     aggfunc = "mean"
@@ -172,13 +178,16 @@ if __name__ == "__main__":
     df = read_data(path)
     df = replace_time_with_hour(df)
     df = swap_focal_bee(df)
-    
+
     if scale:
         grid_3d = concat_grids_over_time(df, var, aggfunc, scale=scale)
         df = convert_grid_to_df(grid_3d)
 
     vel_ch_vs_dist_and_hour = get_vel_ch_vs_dist(df, aggfunc)
     save_to = os.path.join(
-        os.pardir, "aggregated_results", str(args.year), "vel_change_per_dist_and_hour_grid.pkl"
+        os.pardir,
+        "aggregated_results",
+        str(args.year),
+        "vel_change_per_dist_and_hour_grid.pkl",
     )
     vel_ch_vs_dist_and_hour.to_pickle(save_to)
