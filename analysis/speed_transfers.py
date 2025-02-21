@@ -3,32 +3,11 @@ Compute change in speed depending on start velocity and phase of interacting bee
 The results can be compared to null model data.
 """
 
+import argparse
+import os
 
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import os
-import argparse
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument(
-    "--null",
-    required=False,
-    action="store_true",
-    help="Whether to perform analysis for null model or real data.",
-)
-parser.add_argument(
-    "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
-)
-parser.add_argument(
-    "--side", type=int, help="Which side of the hive to analyze the data for. (0 or 1)"
-)
-
-args = parser.parse_args()
-null = args.null
-year = args.year
 
 
 def read_necessary_data(year, null):
@@ -71,17 +50,24 @@ def read_necessary_data(year, null):
     return df
 
 
-def make_both_bees_focal(interactions_df):
+def make_both_bees_focal(
+    interactions_df,
+    var_list=["vel_change", "start_vel", "phase", "r_squared", "age"],
+    extra_cols=[],
+):
     """Combine data such that both bees are considered focal once for each interaction."""
     df = pd.DataFrame()
 
-    for var in ["vel_change", "start_vel", "phase", "r_squared", "age"]:
+    for var in var_list:
         df["%s_focal" % var] = pd.concat(
             [interactions_df["%s_bee0" % var], interactions_df["%s_bee1" % var]]
         )
         df["%s_non_focal" % var] = pd.concat(
             [interactions_df["%s_bee1" % var], interactions_df["%s_bee0" % var]]
         )
+
+    for col in extra_cols:
+        df[col] = pd.concat([interactions_df[col], interactions_df[col]])
 
     return df
 
@@ -114,6 +100,27 @@ def create_combination_matrix(df, var):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--null",
+        required=False,
+        action="store_true",
+        help="Whether to perform analysis for null model or real data.",
+    )
+    parser.add_argument(
+        "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
+    )
+    parser.add_argument(
+        "--side",
+        type=int,
+        help="Which side of the hive to analyze the data for. (0 or 1)",
+    )
+
+    args = parser.parse_args()
+    null = args.null
+    year = args.year
+
     # Prepare data.
     interactions_df = read_necessary_data(year, null)
     combined_df = make_both_bees_focal(interactions_df)
@@ -126,6 +133,9 @@ if __name__ == "__main__":
         if null:
             suffix.append("null")
         save_to = os.path.join(
-            os.pardir, "aggregated_results", str(year), f"speed_trans_vs_{'_'.join(suffix)}.npy"
+            os.pardir,
+            "aggregated_results",
+            str(year),
+            f"speed_trans_vs_{'_'.join(suffix)}.npy",
         )
         np.save(save_to, combination_matrix)
