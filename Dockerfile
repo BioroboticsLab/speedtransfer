@@ -4,7 +4,7 @@ FROM --platform=linux/amd64 python:3.10-slim AS linux-base
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get install -y --no-install-recommends build-essential \
     sudo curl git htop less rsync screen vim nano wget ca-certificates \
-    openssh-client zsh
+    openssh-client zsh libgl1-mesa-glx libglib2.0-0
 
 # Download and install VS Code Server CLI
 RUN wget -O /tmp/vscode-server-cli.tar.gz "https://update.code.visualstudio.com/latest/cli-linux-x64/stable" && \
