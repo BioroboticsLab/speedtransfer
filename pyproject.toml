@@ -1,0 +1,125 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "speedtransfer"
+version = "0.1.0"
+description = "Analysis and visualization tools for investigating the collective flow of circadian clock information in honeybee colonies"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "bb-behavior",
+    "bb-circadian",
+    "bb-rhythm",
+    "bb-utils",
+    "ffmpeg-python>=0.2.0",
+    "imageio>=2.37.0",
+    "ipython>=8.37.0",
+    "matplotlib>=3.7.1",
+    "notebook>=7.4.3",
+    "numpy>=1.26.4",
+    "opencv-python>=4.7.0.72",
+    "pandas>=1.5.3",
+    "pillow>=9.5.0",
+    "pytz>=2022.7",
+    "scikit-image>=0.22.0",
+    "scipy>=1.12.0",
+    "seaborn>=0.13.2",
+    "slurmhelper",
+    "sshtunnel>=0.4.0",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.0.1",
+    "ruff>=0.8.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["bulk-omics-fusion"]
+namespaces = true
+
+[tool.uv.sources]
+bb-behavior = { git = "https://github.com/BioroboticsLab/bb_behavior" }
+bb-circadian = { git = "https://github.com/BioroboticsLab/bb_circadian" }
+bb-rhythm = { git = "https://github.com/BioroboticsLab/bb_rhythm" }
+bb-utils = { git = "https://github.com/BioroboticsLab/bb_utils" }
+slurmhelper = { git = "https://github.com/walachey/slurmhelper" }
+
+[tool.ruff]
+line-length = 119
+indent-width = 4
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint]
+select = []
+ignore = [
+    "ANN002",
+    "ANN003",
+    "ANN401",
+    "D413",
+    "COM812",
+    "D100",
+    "D104",
+    "D107",
+    "D205",
+    "PD901",
+    "D400",
+    "D401",
+    "D415",
+    "FA",
+    "SLF",
+    "INP",
+    "TRY003",
+    "TRY201",
+    "EM",
+    "FBT",
+    "RET",
+    "C406",
+    "E741",
+    "PLR2004",
+    "RUF009",
+    "RUF012",
+    "BLE001",
+    "S603",
+    "S607",
+    "S506",
+    "FIX002",
+    "NPY002",
+    "G004",
+    "S311",
+    "PIE790",
+    "TRY400",
+    "S108",
+    "W191",
+    "E111",
+    "E114",
+    "E117",
+    "D206",
+    "D300",
+    "Q000",
+    "Q001",
+    "Q002",
+    "Q003",
+    "COM812",
+    "COM819",
+    "D203",
+    "D213",
+    "N806",
+    "N803",
+    "E712",
+    "PLR0913",
+    "TC001",
+    "I001",
+    "T201"
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**/*.py" = [
+    "S101",
+    "ARG",
+    "FBT",
+]
