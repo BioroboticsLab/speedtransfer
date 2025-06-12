@@ -8,33 +8,43 @@ from pathlib import Path
 import bb_rhythm.interactions
 import bb_rhythm.utils
 import bb_rhythm.statistics
-import bb_rhythm.plotting
 
 """
-This script groups the interaction data frame and its null model in 6-equally sized bins
+This script groups the interaction data frame and its null model in bins/quantiles
 and compares them statistically. For that a Welch-test is performed and its precondition
 (normality and unequal variance of samples) is tested. Different parameters can be chosen
 for binning the data frame e.g. start velocity, age, phase and r_squared.
 
 Example workflow for the analysis of 2019 data of side 0:
 
-    # First compute area of overlap for small batches of interactions in parallel.
-    comparison_interaction_null_model_test.py --year 2019 --side 0 --binning_var 'start_vel'
+    comparison_interaction_null_model_test.py --year 2019 --side 0 --binning_var 'start_vel' --n_bins 6
 """
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
+    "--year",
+    type=int,
+    required=True,
+    help="Which year to analyze the data for. (2016 or 2019)",
 )
 parser.add_argument(
-    "--side", type=int, help="Which side of the hive to analyze the data for. (0 or 1)"
+    "--side",
+    type=int,
+    required=True,
+    help="Which side of the hive to analyze the data for. (0 or 1)",
 )
 parser.add_argument(
     "--binning_var",
     type=str,
+    required=True,
     help="Which parameter the interactions are binned with. ('start_vel', 'age', 'phase', 'r_squared')",
 )
-
+parser.add_argument(
+    "--n_bins",
+    type=int,
+    default=6,
+    help="Number of bins/quantiles to divide the data into (default: 6)",
+)
 args = parser.parse_args()
 
 
@@ -59,13 +69,33 @@ def set_binning_var(binning_var_flag: str) -> dict:
             "r_squared_focal": "R² of focal bee",
             "r_squared_non_focal": "R² of non-focal bee",
         }
-    if binning_var_flag not in ["start_vel", "age", "phase", "r_squared"]:
-        assert ValueError(
-            f"data can't be binned by '{binning_var_flag}'. Possible options are 'start_vel', 'age', 'phase' or 'r_squared'."
-        )
+    raise ValueError(
+        f"data can't be binned by '{binning_var_flag}'. "
+        "Possible options are 'start_vel', 'age', 'phase' or 'r_squared'."
+    )
 
 
-def prepare_df_for_testing(df: pd.DataFrame, binning_dict: dict, overlap: bool):
+def get_required_columns(binning_dict: dict, overlap: bool = False) -> list:
+    """
+    Return a minimal list of columns needed from the raw CSV to reduce RAM requirements.
+    """
+    cols = list(binning_dict.keys())
+    cols = [col.replace("non_focal", "bee1").replace("focal", "bee0") for col in cols]
+    cols.extend(["vel_change_bee0", "vel_change_bee1"])
+
+    if overlap:
+        cols.append("overlapping")
+
+    # remove duplicates if any
+    return list(set(cols))
+
+
+def prepare_df_for_testing(
+    df: pd.DataFrame,
+    binning_dict: dict,
+    overlap: bool,
+    n_bins: int,
+) -> pd.DataFrame:
     if overlap:
         # filter overlap
         df = bb_rhythm.interactions.filter_overlap(df)
@@ -73,33 +103,35 @@ def prepare_df_for_testing(df: pd.DataFrame, binning_dict: dict, overlap: bool):
     # combine df so all bees are considered as focal
     df = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(df)
 
-    # calculate start velocity
-    bb_rhythm.interactions.get_start_velocity(df)
+    # calculate start velocity (if not already present)
+    if (
+        "velocity_start_focal" in binning_dict.keys()
+        and "velocity_start_focal" not in df.columns
+    ):
+        df = bb_rhythm.interactions.get_start_velocity(df, focal_col="bee0")
 
-    # subset
-    df = df.loc[
-        :,
-        list(binning_dict.keys())
-        + ["vel_change_bee_focal", "vel_change_bee_non_focal"],
-    ]
-
-    # filter and replace nan
+    # filter and replace nan/infs
     df.replace({-np.inf: np.nan, np.inf: np.nan}, inplace=True)
     df.dropna(inplace=True)
 
-    # add bins
-    binning = bb_rhythm.utils.Binning(
-        bin_name="bins_focal", bin_parameter=list(binning_dict.keys())[0]
+    # add bins for focal
+    bin_focal = bb_rhythm.utils.Binning(
+        bin_name="bins_focal",
+        bin_parameter=list(binning_dict.keys())[0],
     )
-    df = binning.add_bins_to_df(
-        df, n_bins=6, step_size=None, bin_max_n=None, bin_labels=None
+    df = bin_focal.add_bins_to_df(
+        df, n_bins=n_bins, step_size=None, bin_max_n=None, bin_labels=None
     )
-    binning = bb_rhythm.utils.Binning(
-        bin_name="bins_non_focal", bin_parameter=list(binning_dict.keys())[1]
+
+    # add bins for non-focal
+    bin_non = bb_rhythm.utils.Binning(
+        bin_name="bins_non_focal",
+        bin_parameter=list(binning_dict.keys())[1],
     )
-    df = binning.add_bins_to_df(
-        df, n_bins=6, step_size=None, bin_max_n=None, bin_labels=None
+    df = bin_non.add_bins_to_df(
+        df, n_bins=n_bins, step_size=None, bin_max_n=None, bin_labels=None
     )
+
     return df
 
 
@@ -113,12 +145,49 @@ def sample_sizes(df: pd.DataFrame) -> dict:
     return sample_size_dict
 
 
+def aggregate_for_plotting(
+    df: pd.DataFrame,
+    binning_dict: dict,
+    null: bool = False,
+    year: int = 2019,
+    side: int = 0,
+    n_bins: int = 6,
+    aggfunc: str = "median",
+) -> pd.DataFrame:
+    """
+    Aggregate the DataFrame by the binning variables and apply the specified aggregation function.
+    """
+    var = list(binning_dict.keys())[0].replace("focal", "").replace("non_focal", "").strip("_")
+
+    aggregation_matrix = pd.pivot_table(
+        data=df,
+        values="vel_change_bee_focal",
+        index="bins_non_focal",
+        columns="bins_focal",
+        aggfunc=aggfunc,
+    ).to_numpy()
+
+    suffix = [var, str(side), f"{n_bins}bins"]
+
+    if null:
+        suffix.append("null")
+
+    save_to = (
+        Path(os.pardir)
+        / "aggregated_results"
+        / str(year)
+        / f"speed_trans_vs_{'_'.join(suffix)}.npy"
+    )
+    save_to.parent.mkdir(parents=True, exist_ok=True)
+    save_to = str(save_to)
+    np.save(save_to, aggregation_matrix)
+
+
 def get_in_case_reverse_tuple(key_tuple, sample_sizes):
     try:
-        s_size = sample_sizes[key_tuple]
+        return sample_sizes[key_tuple]
     except KeyError:
-        s_size = sample_sizes[(key_tuple[1], key_tuple[0])]
-    return s_size
+        return sample_sizes[(key_tuple[1], key_tuple[0])]
 
 
 def extract_test_stats(
@@ -132,68 +201,103 @@ def extract_test_stats(
         bin_pair.append(key)
         p_values.append(value.pvalue)
         test_statistics.append(value.statistic)
-        if type(key[0]) == str:
+        # sample sizes may be symmetric pairs
+        if isinstance(key[0], str):
             sample_size.append(get_in_case_reverse_tuple(key, sample_sizes))
-        if not type(key[0]) == str:
-            sample_size.append((get_in_case_reverse_tuple(key[0], sample_sizes), get_in_case_reverse_tuple(key[1], sample_sizes)))
-    test_stats_df = pd.DataFrame(
+        else:
+            sample_size.append(
+                (
+                    get_in_case_reverse_tuple(key[0], sample_sizes),
+                    get_in_case_reverse_tuple(key[1], sample_sizes),
+                )
+            )
+    return pd.DataFrame(
         {
-            "test_name": len(p_values) * [test_name],
+            "test_name": [test_name] * len(p_values),
             "test_statistic": test_statistics,
             "p_value": p_values,
             "sample_size": sample_size,
             "bin_pair": bin_pair,
         }
     )
-    return test_stats_df
 
 
 if __name__ == "__main__":
-    # set sys path and import path settings
-    sys.path.append(
-        str(Path("comparison_interaction_null_model_test.py").resolve().parents[1])
-    )
+    sys.path.append(str(Path(__file__).resolve().parent.parent))
     import path_settings
 
-    cosinor_df_path, interaction_df_path, interaction_df_null_path, interaction_tree_df_path, agg_data_path, exit_pos = path_settings.set_parameters(
-         args.year, args.side
-    )
+    # determine file paths
+    (
+        cosinor_df_path,
+        interaction_df_path,
+        interaction_df_null_path,
+        interaction_tree_df_path,
+        agg_data_path,
+        exit_pos,
+    ) = path_settings.set_parameters(args.year, args.side)
 
-    # get binning labels and set variables
+    # get binning labels and variables
     binning_dict = set_binning_var(args.binning_var)
 
-    # load null model frame
-    df_null = pd.read_csv(interaction_df_null_path)
+    # read only required columns for null model
+    usecols_null = get_required_columns(binning_dict, overlap=False)
+    df_null = pd.read_csv(interaction_df_null_path, usecols=usecols_null)
 
-    # clean df and add bins
-    df_null = prepare_df_for_testing(df_null.copy(), binning_dict, overlap=False)
-
-    # load interaction frame
-    interaction_df = pd.read_csv(interaction_df_path)
-
-    # clean df and add bins
-    interaction_df = prepare_df_for_testing(
-        interaction_df.copy(), binning_dict, overlap=True
+    # clean null df and add bins
+    df_null = prepare_df_for_testing(
+        df_null.copy(), binning_dict, overlap=False, n_bins=args.n_bins
     )
 
-    # get sample size
+    # save aggregated results for plotting
+    aggregate_for_plotting(
+        df_null,
+        binning_dict,
+        null=True,
+        year=args.year,
+        side=args.side,
+        n_bins=args.n_bins,
+    )
+
+    # read only required columns for interaction data (needs overlap)
+    usecols_inter = get_required_columns(binning_dict, overlap=True)
+    interaction_df = pd.read_csv(interaction_df_path, usecols=usecols_inter)
+
+    # clean interaction df and add bins
+    interaction_df = prepare_df_for_testing(
+        interaction_df.copy(), binning_dict, overlap=True, n_bins=args.n_bins
+    )
+    interaction_df = pd.read_csv("intermediate_df_interaction.csv", index_col=0)
+
+    # save aggregated results for plotting
+    aggregate_for_plotting(
+        interaction_df,
+        binning_dict,
+        null=False,
+        year=args.year,
+        side=args.side,
+        n_bins=args.n_bins,
+    )
+
+    # get combined sample sizes
     sample_sizes_dict = sample_sizes(interaction_df)
     sample_sizes_dict.update(sample_sizes(df_null))
 
-    # test if normally distributed
-    normally_distributed_bins_test_null = extract_test_stats(
+    # test normality
+    normally_null = extract_test_stats(
         bb_rhythm.statistics.test_normally_distributed_bins(df_null, printing=False),
         sample_sizes_dict,
-        "Kalgomorov Smirnoff test",
+        "Kolmogorov-Smirnov test",
     )
-    normally_distributed_bins_test_interaction = extract_test_stats(
-        bb_rhythm.statistics.test_normally_distributed_bins(interaction_df, printing=False),
+    normally_inter = extract_test_stats(
+        bb_rhythm.statistics.test_normally_distributed_bins(
+            interaction_df, printing=False
+        ),
         sample_sizes_dict,
-        "Kalgomorov Smirnoff test",
+        "Kolmogorov-Smirnov test",
     )
 
-    # test if equal variance
-    equal_variance_comparison_bins_test = extract_test_stats(
+    # test variance equality
+    equal_var = extract_test_stats(
         bb_rhythm.statistics.test_for_comparison_bins(
             df_null,
             interaction_df,
@@ -205,8 +309,8 @@ if __name__ == "__main__":
         "Levene test",
     )
 
-    # test if significantly different mean
-    unequal_mean_comparison_bins_test = extract_test_stats(
+    # test mean differences
+    unequal_mean = extract_test_stats(
         bb_rhythm.statistics.test_for_comparison_bins(
             df_null,
             interaction_df,
@@ -218,20 +322,17 @@ if __name__ == "__main__":
         "Welch test",
     )
 
-    # save test results
-    save_to = os.path.join(
-        agg_data_path, f"test_vel_change_side{args.side}_{args.year}_{args.binning_var}"
-    )
+    # combine and save results
     test_stats_df = pd.concat(
-        [
-            normally_distributed_bins_test_null,
-            normally_distributed_bins_test_interaction,
-            equal_variance_comparison_bins_test,
-            unequal_mean_comparison_bins_test,
-        ],
+        [normally_null, normally_inter, equal_var, unequal_mean],
         ignore_index=True,
     )
-    test_stats_df.to_csv(f"{save_to}.csv")
+    save_to = os.path.join(
+        agg_data_path,
+        f"test_vel_change_side{args.side}_{args.year}_{args.binning_var}_bins{args.n_bins}",
+    )
+    test_stats_df.to_csv(f"{save_to}.csv", index=False)
 
-    # get summary of each test
-    test_stats_df.groupby("test_name").apply(lambda x: print(x.test_name.iloc[0], "\n", x.describe()))
+    # print summary per test
+    for test_name, group in test_stats_df.groupby("test_name"):
+        print(test_name, "\n", group.describe(), "\n")
