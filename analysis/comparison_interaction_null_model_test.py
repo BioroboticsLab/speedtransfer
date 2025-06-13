@@ -1,13 +1,13 @@
-import pandas as pd
-import numpy as np
-import sys
-import os
 import argparse
+import os
+import sys
 from pathlib import Path
 
 import bb_rhythm.interactions
-import bb_rhythm.utils
 import bb_rhythm.statistics
+import bb_rhythm.utils
+import numpy as np
+import pandas as pd
 
 """
 This script groups the interaction data frame and its null model in bins/quantiles
@@ -76,12 +76,21 @@ def set_binning_var(binning_var_flag: str) -> dict:
 
 
 def get_required_columns(binning_dict: dict, overlap: bool = False) -> list:
-    """
-    Return a minimal list of columns needed from the raw CSV to reduce RAM requirements.
+    """Return a minimal list of columns needed from the raw CSV to reduce RAM requirements.
+
+    Args:
+        binning_dict (dict): Dictionary with binning variables.
+        overlap (bool): Whether to include the 'overlapping' column (should be False for the null model data).
+
+    Returns:
+        list: List of required columns.
     """
     cols = list(binning_dict.keys())
     cols = [col.replace("non_focal", "bee1").replace("focal", "bee0") for col in cols]
     cols.extend(["vel_change_bee0", "vel_change_bee1"])
+
+    if "velocity_start_bee0" in cols:
+        cols = [col.replace("velocity_start", "rel_change") for col in cols]
 
     if overlap:
         cols.append("overlapping")
@@ -96,6 +105,19 @@ def prepare_df_for_testing(
     overlap: bool,
     n_bins: int,
 ) -> pd.DataFrame:
+    """
+    Prepare the DataFrame for statistical testing by filtering for actual interactions, combining bees,
+    and adding bins.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing interaction data.
+        binning_dict (dict): Dictionary with binning variables.
+        overlap (bool): Whether to filter for overlapping interactions.
+        n_bins (int): Number of bins to create.
+
+    Returns:
+        pd.DataFrame: The prepared DataFrame with bins added and NaN values handled.
+    """
     if overlap:
         # filter overlap
         df = bb_rhythm.interactions.filter_overlap(df)
@@ -104,11 +126,8 @@ def prepare_df_for_testing(
     df = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(df)
 
     # calculate start velocity (if not already present)
-    if (
-        "velocity_start_focal" in binning_dict.keys()
-        and "velocity_start_focal" not in df.columns
-    ):
-        df = bb_rhythm.interactions.get_start_velocity(df, focal_col="bee0")
+    if "velocity_start_focal" in binning_dict.keys() and "velocity_start_focal" not in df.columns:
+        df = bb_rhythm.interactions.get_start_velocity(df)
 
     # filter and replace nan/infs
     df.replace({-np.inf: np.nan, np.inf: np.nan}, inplace=True)
@@ -119,23 +138,29 @@ def prepare_df_for_testing(
         bin_name="bins_focal",
         bin_parameter=list(binning_dict.keys())[0],
     )
-    df = bin_focal.add_bins_to_df(
-        df, n_bins=n_bins, step_size=None, bin_max_n=None, bin_labels=None
-    )
+    df = bin_focal.add_bins_to_df(df, n_bins=n_bins, step_size=None, bin_max_n=None, bin_labels=None)
 
     # add bins for non-focal
     bin_non = bb_rhythm.utils.Binning(
         bin_name="bins_non_focal",
         bin_parameter=list(binning_dict.keys())[1],
     )
-    df = bin_non.add_bins_to_df(
-        df, n_bins=n_bins, step_size=None, bin_max_n=None, bin_labels=None
-    )
+    df = bin_non.add_bins_to_df(df, n_bins=n_bins, step_size=None, bin_max_n=None, bin_labels=None)
 
     return df
 
 
 def sample_sizes(df: pd.DataFrame) -> dict:
+    """
+    Calculate the sample sizes for each combination of focal and non-focal bins (i.e. each entry in the
+    aggregation matrix).
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing the interaction data with bins.
+
+    Returns:
+        dict: A dictionary with tuples of (focal_bin, non_focal_bin) as keys and sample sizes as values.
+    """
     sample_size_dict = (
         df[["bins_focal", "bins_non_focal", "vel_change_bee_focal"]]
         .groupby(["bins_focal", "bins_non_focal"])
@@ -153,9 +178,22 @@ def aggregate_for_plotting(
     side: int = 0,
     n_bins: int = 6,
     aggfunc: str = "median",
-) -> pd.DataFrame:
+) -> None:
     """
-    Aggregate the DataFrame by the binning variables and apply the specified aggregation function.
+    Aggregate the DataFrame by the binning variables and apply the specified aggregation function
+    for each combination of binning values.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing the interaction data with bins.
+        binning_dict (dict): Dictionary with binning variables.
+        null (bool): Whether this is the null model data (default: False).
+        year (int): The year of the data (default: 2019).
+        side (int): The side of the hive (0 or 1) (default: 0).
+        n_bins (int): Number of bins used for aggregation (default: 6).
+        aggfunc (str): Aggregation function to use ('mean', 'median', etc.) (default: 'median').
+
+    Returns:
+        None: Saves the aggregated results to a .npy file to be used for plotting.
     """
     var = list(binning_dict.keys())[0].replace("focal", "").replace("non_focal", "").strip("_")
 
@@ -172,27 +210,43 @@ def aggregate_for_plotting(
     if null:
         suffix.append("null")
 
-    save_to = (
-        Path(os.pardir)
-        / "aggregated_results"
-        / str(year)
-        / f"speed_trans_vs_{'_'.join(suffix)}.npy"
-    )
+    save_to = Path(os.pardir) / "aggregated_results" / str(year) / f"speed_trans_vs_{'_'.join(suffix)}.npy"
     save_to.parent.mkdir(parents=True, exist_ok=True)
     save_to = str(save_to)
     np.save(save_to, aggregation_matrix)
 
 
 def get_in_case_reverse_tuple(key_tuple, sample_sizes):
+    """
+    Get the sample size for a given key tuple, considering that the keys may be symmetric pairs.
+    If the key tuple is (a, b), it will return the sample size for (a, b) or (b, a).
+    If the key is a string, it will return the sample size for that string.
+
+    Args:
+        key_tuple (tuple or str): The key tuple or string to look up in the sample sizes dictionary.
+        sample_sizes (dict): Dictionary containing sample sizes for each key tuple.
+
+    Returns:
+        int: The sample size for the given key tuple, considering symmetry.
+    """
     try:
         return sample_sizes[key_tuple]
     except KeyError:
         return sample_sizes[(key_tuple[1], key_tuple[0])]
 
 
-def extract_test_stats(
-    test_results: dict, sample_sizes: dict, test_name: str
-) -> pd.DataFrame:
+def extract_test_stats(test_results: dict, sample_sizes: dict, test_name: str) -> pd.DataFrame:
+    """
+    Extract test statistics from the results of statistical tests and format them into a DataFrame.
+
+    Args:
+        test_results (dict): Dictionary containing the results of statistical tests.
+        sample_sizes (dict): Dictionary containing sample sizes for each key tuple.
+        test_name (str): Name of the statistical test performed.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the test name, test statistics, p-values, sample sizes, and bin pairs.
+    """
     p_values = []
     test_statistics = []
     sample_size = []
@@ -244,9 +298,7 @@ if __name__ == "__main__":
     df_null = pd.read_csv(interaction_df_null_path, usecols=usecols_null)
 
     # clean null df and add bins
-    df_null = prepare_df_for_testing(
-        df_null.copy(), binning_dict, overlap=False, n_bins=args.n_bins
-    )
+    df_null = prepare_df_for_testing(df_null.copy(), binning_dict, overlap=False, n_bins=args.n_bins)
 
     # save aggregated results for plotting
     aggregate_for_plotting(
@@ -263,9 +315,7 @@ if __name__ == "__main__":
     interaction_df = pd.read_csv(interaction_df_path, usecols=usecols_inter)
 
     # clean interaction df and add bins
-    interaction_df = prepare_df_for_testing(
-        interaction_df.copy(), binning_dict, overlap=True, n_bins=args.n_bins
-    )
+    interaction_df = prepare_df_for_testing(interaction_df.copy(), binning_dict, overlap=True, n_bins=args.n_bins)
     interaction_df = pd.read_csv("intermediate_df_interaction.csv", index_col=0)
 
     # save aggregated results for plotting
@@ -289,9 +339,7 @@ if __name__ == "__main__":
         "Kolmogorov-Smirnov test",
     )
     normally_inter = extract_test_stats(
-        bb_rhythm.statistics.test_normally_distributed_bins(
-            interaction_df, printing=False
-        ),
+        bb_rhythm.statistics.test_normally_distributed_bins(interaction_df, printing=False),
         sample_sizes_dict,
         "Kolmogorov-Smirnov test",
     )
