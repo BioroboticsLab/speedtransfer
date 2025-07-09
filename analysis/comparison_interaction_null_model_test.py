@@ -3,11 +3,11 @@ import os
 import sys
 from pathlib import Path
 
-import bb_rhythm.interactions
 import bb_rhythm.statistics
 import bb_rhythm.utils
 import numpy as np
 import pandas as pd
+from bb_rhythm.interactions import combine_bees_from_interaction_df_to_be_all_focal, filter_overlap, get_start_velocity
 
 """
 This script groups the interaction data frame and its null model in bins/quantiles
@@ -120,14 +120,14 @@ def prepare_df_for_testing(
     """
     if overlap:
         # filter overlap
-        df = bb_rhythm.interactions.filter_overlap(df)
+        df = filter_overlap(df)
 
     # combine df so all bees are considered as focal
-    df = bb_rhythm.interactions.combine_bees_from_interaction_df_to_be_all_focal(df)
+    df = combine_bees_from_interaction_df_to_be_all_focal(df)
 
     # calculate start velocity (if not already present)
     if "velocity_start_focal" in binning_dict.keys() and "velocity_start_focal" not in df.columns:
-        df = bb_rhythm.interactions.get_start_velocity(df)
+        get_start_velocity(df)
 
     # filter and replace nan/infs
     df.replace({-np.inf: np.nan, np.inf: np.nan}, inplace=True)
@@ -316,7 +316,6 @@ if __name__ == "__main__":
 
     # clean interaction df and add bins
     interaction_df = prepare_df_for_testing(interaction_df.copy(), binning_dict, overlap=True, n_bins=args.n_bins)
-    interaction_df = pd.read_csv("intermediate_df_interaction.csv", index_col=0)
 
     # save aggregated results for plotting
     aggregate_for_plotting(

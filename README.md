@@ -1,8 +1,8 @@
-# Speed transfer contributes to circadian activity
+# Collective flow of circadian clock information in honeybee colonies
 
-Analyzing social behaviour and rhythmicity in honey bee colony.
+Analyzing social behaviour and rhythmicity in honey bee colonies.
 
-Preprint:
+[Link to preprint](https://www.biorxiv.org/content/10.1101/2024.07.29.605620v1)
 
 ## Goal
 The goal of this project is to provide a comprehensive implementation of methods for studying and analyzing behavioral 
@@ -62,6 +62,17 @@ path_settings.py
 ```
 
 ## Usage
+### Setup
+To install the dependencies for this project you can use the provided `speedtransfer.yml` file to create a conda environment using
+```
+conda env create -f environment.yml
+```
+(This environment only supports linux.)
+
+Alternatively, you can:
+1. Install the [Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) extension in VSCode.
+2. Click the `Reopen in Container` button that pops up once you open this repository in VSCode or press `CMD+SHIFT+P` (on Mac) and type `Dev Containers: Reopen in Container`.
+
 ### Analysis
 Here scripts are provided for bee rhythm behavior analysis, including data acquisition, preprocessing, and statistical 
 validation. It focuses on trajectory data collection, cosine curve fitting for activity patterns, interaction analysis, 
