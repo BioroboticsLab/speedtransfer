@@ -1,108 +1,152 @@
-# Collective flow of circadian clock information in honeybee colonies
+# 🐝 Collective Flow of Circadian Clock Information in Honeybee Colonies
 
-Analyzing social behaviour and rhythmicity in honey bee colonies.
+<div align="center">
 
-[Link to preprint](https://www.biorxiv.org/content/10.1101/2024.07.29.605620v1)
+[![Preprint](https://img.shields.io/badge/bioRxiv-2024.07.29.605620-red?style=flat-square)](https://www.biorxiv.org/content/10.1101/2024.07.29.605620v1)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.8+-green?style=flat-square&logo=python)](https://python.org)
+[![Conda](https://img.shields.io/badge/Conda-Environment-brightgreen?style=flat-square&logo=anaconda)](environment.yml)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue?style=flat-square&logo=docker)](Dockerfile)
+[![SLURM](https://img.shields.io/badge/SLURM-Compatible-orange?style=flat-square)](https://slurm.schedmd.com/)
+[![Zenodo](https://img.shields.io/badge/Data-Zenodo-blue?style=flat-square&logo=zenodo)](https://zenodo.org/records/10869728)
 
-## Goal
-The goal of this project is to provide a comprehensive implementation of methods for studying and analyzing behavioral 
-rhythmicity in bees which is handled in the paper [Collective flow of circadian clock information in honeybee
-colonies](https://www.biorxiv.org/content/biorxiv/early/2024/07/30/2024.07.29.605620.full.pdf). The repository 
-is offering a toolkit for data acquisition, preprocessing, and analysis, focusing on the following key objectives:
-1) Data Acquisition and Preprocessing: Implement methods for collecting trajectory data of marked bees using the 
-[BeesBook](https://github.com/BioroboticsLab/bb_main/wiki) system. 
-2) Cosinor Model of Individuals’ Activity: Develop algorithms for fitting cosine curves to individual bee movement 
-speeds to analyze rhythmic expression and detect 24-hour activity patterns.
-3) Interaction Modeling: Implement techniques for detecting and analyzing interactions between bees based on trajectory 
-data, including timing, duration, and impact on movement speed.
-4) Statistical Analysis and Validation: Conduct statistical tests to validate the significance of observed behavior 
-patterns and interactions compared to null models and simulated data.
-5) Visualization and Interpretation: Provide visualization tools to interpret and present the results of the analysis.
+*Analyzing social behaviour and rhythmicity in honey bee colonies through advanced computational methods*
 
-The analysis was done for the period 01.08.-25.08.2016 and 20.08-14.09.2019, but can be easily adapted for different
-time periods and data sets.
+</div>
 
-![overview_figure.png](figures%2Fimgs%2Foverview_figure.png)
+## 📑 Table of Contents
 
-## Structure
-The code contains several folders containing python scripts, jupyter notebooks or data.
+- [🎯 Goal](#-goal)
+- [📁 Project Structure](#-project-structure)
+- [🚀 Getting Started](#-getting-started)
+- [📊 Analysis Pipeline](#-analysis-pipeline)
+- [📊 Visualization & Figures](#-visualization--figures)
+- [🔬 Simulation Framework](#-simulation-framework)
+- [💾 Data Access](#-data-access)
+- [🏆 Citation](#-citation)
 
-This folder contains several python scripts for creating data structures, data models, but also for analysing the data. 
-Most of them are designed to be run on a SLURM system. Further use of the scripts can be found in [Usage](#usage).
+## 🎯 Goal
+This project provides a comprehensive implementation of methods for studying and analyzing behavioral rhythmicity in honey bees, as detailed in our paper: **[Collective flow of circadian clock information in honeybee colonies](https://www.biorxiv.org/content/biorxiv/early/2024/07/30/2024.07.29.605620.full.pdf)**.
+
+### 🔬 Key Objectives
+
+| Objective | Description |
+|-----------|-------------|
+| 📊 **Data Acquisition** | Implement methods for collecting trajectory data of marked bees using the [BeesBook](https://github.com/BioroboticsLab/bb_main/wiki) system |
+| 🕐 **Cosinor Modeling** | Develop algorithms for fitting cosine curves to individual bee movement speeds to analyze rhythmic expression |
+| 🤝 **Interaction Analysis** | Implement techniques for detecting and analyzing bee interactions based on trajectory data |
+| 📈 **Statistical Validation** | Conduct statistical tests to validate observed behavior patterns against null models |
+| 📊 **Visualization** | Provide comprehensive visualization tools for interpreting and presenting analysis results |
+
+> 📅 **Analysis Period**: August 1-25, 2016 and August 20 - September 14, 2019
+
+<div align="center">
+
+![Overview Figure](figures%2Fimgs%2Foverview_figure.png)
+*Figure: Overview of the collective flow analysis framework*
+
+</div>
+
+## 📁 Project Structure
+
+<details>
+<summary>📂 <strong>Click to expand directory structure</strong></summary>
+
 ```
-analysis\
+speedtransfer/
+├── 📊 analysis/                    # Core analysis scripts
+│   ├── cosinor_fit_per_bee.py     # Individual rhythm analysis
+│   ├── velocity_change_per_interaction.py  # Interaction detection
+│   └── ...
+├── 📈 figures/                     # Visualization notebooks
+│   ├── figure_panel_1.ipynb       # Movement speed analysis
+│   ├── figure_panel_2.ipynb       # Speed transfer analysis
+│   └── imgs/                       # Generated figures
+├── 📋 aggregated_results/          # Processed data outputs
+│   ├── 2016/                       # 2016 analysis results
+│   └── 2019/                       # 2019 analysis results
+├── 💾 data/                        # Raw data (download required)
+│   ├── 2016/
+│   └── 2019/
+├── 🔧 simulation/                  # Simulation scripts
+├── ⚙️ path_settings.py            # Path configuration
+├── 📦 environment.yml             # Conda environment
+└── 🐳 Dockerfile                  # Container setup
 ```
 
-This folder contains several jupyter notebooks for visualizing the data. Each panel figure of the is visualized by one 
-of the notebooks. The panel figures and sub figures are stored in the imgs sub folder as .png and .svg files.
-```
-figures\
-    \imgs
-```
+</details>
 
-This folder contains aggregates of the data which are used for faster visualizing in the figure notebooks.
-```
-\aggregated_results
-    \2016
-    \2019
-```
+### 📂 Directory Details
 
-This file contains the output dataframes of the analysis scripts. The data is used for further analysis in the figure 
-notebooks. The data folder is currently empty but can be downloaded into the data directory [here](https://zenodo.org/records/10869728).
-```
-\data
-    \2016
-    \2019
-```
+| Directory | Purpose | Key Features |
+|-----------|---------|--------------|
+| 🔬 **`analysis/`** | Core analysis scripts | SLURM-compatible, modular design |
+| 📊 **`figures/`** | Jupyter visualization notebooks | Interactive plots, publication-ready figures |
+| 📈 **`aggregated_results/`** | Processed data for visualization | Pre-computed results for faster plotting |
+| 💾 **`data/`** | Raw trajectory data | [Download from Zenodo](https://zenodo.org/records/10869728) |
+| 🔧 **`simulation/`** | MATLAB simulation scripts | Agent-based modeling |
 
-This file contains all the paths used in the repository and needs to be modified in case different data and data paths 
-are used.
-```
-path_settings.py
-```
+## 🚀 Getting Started
 
-## Usage
-### Setup
-To install the dependencies for this project you can use the provided `speedtransfer.yml` file to create a conda environment using
-```
+### 📦 Installation
+
+<details>
+<summary><strong>Option 1: Conda Environment</strong></summary>
+
+```bash
+# Create conda environment
 conda env create -f environment.yml
+
+# Activate environment
+conda activate speedtransfer
 ```
-(This environment only supports linux.)
 
-Alternatively, you can:
-1. Install the [Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) extension in VSCode.
-2. Click the `Reopen in Container` button that pops up once you open this repository in VSCode or press `CMD+SHIFT+P` (on Mac) and type `Dev Containers: Reopen in Container`.
+> ⚠️ **Note**: This environment only supports Linux.
 
-### Analysis
-Here scripts are provided for bee rhythm behavior analysis, including data acquisition, preprocessing, and statistical 
-validation. It focuses on trajectory data collection, cosine curve fitting for activity patterns, interaction analysis, 
-and statistical validation, with most scripts designed for use with a Slurm manager.
+</details>
 
-The following scripts are designed with [slurmhelper](htttps://ww.github.com/walachey/slurmhelper) and provide the following functionalities:
-* [cosinor_fit_per_bee.py](analysis%2Fcosinor_fit_per_bee.py):  It implements a method to analyze the rhythm expression of individual bees by fitting 
-cosine curves to their movement speeds using a cosinor model. It divides for a given time period the speeds into 
-three-day intervals, calculates fits for each day, and determines the presence of a 24-hour rhythm based on statistical 
-significance tests, providing outputs such as phase mapping and fit strength indicators.
-* [mean_velocity_per_age_group.py](analysis%2Fmean_velocity_per_age_group.py): 
-This script generates a pandas dataframe containing the mean velocity data per 10 minutes for each age.
-* [social_network_interaction_tree.py](analysis%2Fsocial_network_interaction_tree.py): This script provides a method to capture the cumulative effect of sequential 
-interactions among bees, beyond just one-on-one interactions. It focuses on interactions occurring between 10 am and 3 pm, 
-selecting a random subset of significantly rhythmic bees younger than 5 days old, with peak activity after 12 pm. By recursively 
-tracing back interactions that positively impacted the focal bee's speed, it constructs a graph-theoretic tree structure, 
-with a maximum time window of 30 minutes between interactions and a maximum cascade duration of 2 hours.
-* [velocity_change_per_interaction.py](analysis%2Fvelocity_change_per_interaction.py): The script implements an interaction detection algorithm adn how the speed
-of a bee is affected by such an interaction. It identifies interactions between bees by simultaneous detection, requiring 
-a confidence threshold of 0.25 and thorax marking distances within 14 mm. If detections occur within a 1-second interval, 
-interactions are consolidated, accounting for overlapping bodies and counting both bees as focal once. For each interaction, 
-the script records information including timing, duration, partner age, rhythmicity features (phase and R²), speed change 
-after interaction, and overlap image indicating contact position and angle. Speed change is computed as the difference in 
-average speed before and after the interaction.
-* [velocity_change_per_interaction_null_model.py](analysis%2Fvelocity_change_per_interaction_null_model.py): This script implements the creation of an interaction null model.
-The model is created by taking the distribution of the start and end times of the interactions and selecting two random 
-bees at those times that the bees were detected in the hive at that time. These pairs of bees are considered as 
-"interacting" and their speed change is calculated.
+<details>
+<summary><strong>Option 2: VS Code Dev Containers (Recommended)</strong></summary>
 
-Some files contain a slurmhelper job definition at the end which needs to be adapted:
+1. Install the [Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) extension in VS Code
+2. Click `Reopen in Container` when prompted, or:
+   - Press `Ctrl+Shift+P` (Linux/Windows) or `Cmd+Shift+P` (Mac)
+   - Type `Dev Containers: Reopen in Container`
+
+</details>
+
+<details>
+<summary><strong>Option 3: Docker</strong></summary>
+
+```bash
+# Build the container
+docker build -t speedtransfer .
+
+# Run the container
+docker run -it speedtransfer
+```
+
+</details>
+
+### 📊 Analysis Pipeline
+
+Our analysis framework provides comprehensive tools for studying bee rhythmicity and social interactions:
+
+#### 🔬 Core Analysis Scripts
+
+| Script | Function | Key Features |
+|--------|----------|--------------|
+| 🕐 [`cosinor_fit_per_bee.py`](analysis/cosinor_fit_per_bee.py) | **Individual Rhythm Analysis** | Fits cosine curves to movement speeds, detects 24h rhythms |
+| 📊 [`mean_velocity_per_age_group.py`](analysis/mean_velocity_per_age_group.py) | **Age-based Velocity Analysis** | Generates mean velocity data per age group (10-min intervals) |
+| 🌐 [`social_network_interaction_tree.py`](analysis/social_network_interaction_tree.py) | **Social Network Analysis** | Maps sequential interaction cascades, constructs graph-theoretic trees |
+| 🤝 [`velocity_change_per_interaction.py`](analysis/velocity_change_per_interaction.py) | **Interaction Detection** | Identifies bee interactions, measures speed changes |
+| 🎲 [`velocity_change_per_interaction_null_model.py`](analysis/velocity_change_per_interaction_null_model.py) | **Null Model Generation** | Creates randomized interaction models for statistical validation |
+
+> 💡 **Note**: These scripts are designed for [slurmhelper](https://github.com/walachey/slurmhelper) compatibility for high-performance computing environments.
+
+#### ⚙️ SLURM Configuration
+
+For scripts with SLURM support, adapt the job configuration:
 ```python
 # create job
 job = SLURMJob("foo_job_name", "foo_job_directory") # Choose job name and a directory where the job is stored
@@ -121,56 +165,110 @@ job.exports = "OMP_NUM_THREADS=2,MKL_NUM_THREADS=2"
 job.set_postprocess_fun(concat_jobs_2016) # either _2016 or _2019
 ```
 
-To create a slurmarray with these jobs:
+```bash
+# Create SLURM job array
+python analysis_script.py --create
+
+# Run jobs automatically
+python analysis_script.py --autorun
+
+# Or run manually
+python analysis_script.py --run
+
+# Post-process/concatenate results
+python analysis_script.py --postprocess
 ```
-python foo.py --create
+
+> 📚 **More Information**: See [slurmhelper documentation](https://github.com/walachey/slurmhelper) or run `python script.py --help`
+
+The remaining scripts can either be executed locally or on a HPC cluster using the provided bash scripts:
+- `run_individual_job.sh` - Single job execution
+- `run_parallel_jobs.sh` - Parallel job execution
+
+## 📊 Visualization & Figures
+
+Explore our comprehensive Jupyter notebooks for data visualization and figure generation:
+
+### 📈 Available Notebooks
+
+| Notebook | Content | Key Visualizations |
+|----------|---------|-------------------|
+| 📊 [`figure_panel_1.ipynb`](figures/figure_panel_1.ipynb) | **Movement & Rhythm Analysis** | Group/individual speeds, cosinor fits, age-based rhythmicity |
+| 🤝 [`figure_panel_2.ipynb`](figures/figure_panel_2.ipynb) | **Interaction Analysis** | Speed transfer patterns, body-location mapping |
+| 🗺️ [`figure_panel_3.ipynb`](figures/figure_panel_3.ipynb) | **Spatial Analysis** | Activity phase distribution, interaction cascades |
+| 📋 [`figure_supplementary.ipynb`](figures/figure_supplementary.ipynb) | **Supplementary Data** | Observation statistics, additional metrics |
+| 🎬 [`animations.ipynb`](figures/animations.ipynb) | **Dynamic Visualizations** | Animated activity flow patterns |
+
+### 🎯 Quick Start with Figures
+
+```bash
+# Navigate to figures directory
+cd figures/
+
+# Launch Jupyter Lab
+jupyter lab
+
+# Open any notebook and run all cells
 ```
-To run it:
+
+## 🔬 Simulation Framework
+
+Our MATLAB-based simulation environment provides agent-based modeling capabilities for validating theoretical predictions:
+
+### 🔧 Simulation Components
+
+| Script | Purpose |
+|--------|---------|
+| `run_simulation.m` | Main simulation runner |
+| `sketch_agents_2D.m` / `sketch_agents_3D.m` | Agent visualization |
+| `draw_positions_from_gaussian.m` | Spatial position generation |
+| `draw_velocities.m` | Velocity distribution modeling |
+| `fit_sine.m` | Sine wave fitting for rhythm analysis |
+
+## 💾 Data Access
+
+<div align="center">
+
+[![Zenodo DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.10869728-blue?style=flat-square&logo=zenodo)](https://zenodo.org/records/10869728)
+
+</div>
+
+### 📥 Download Instructions
+
+```bash
+# Download data from Zenodo (adjust link for different files)
+wget https://zenodo.org/records/10869728/files/interactions_side0_2019.zip
+
+# Extract to data directory
+unzip data.zip
+
+# Verify structure
+ls data/
 ```
-python foo.py --autorun
+
+> ⚠️ **Important**: Data must be placed in the `data/` directory for proper path imports in analysis scripts. Alternatively adjust the `path_settings.py` file.
+
+## 🏆 Citation
+
+If you use this code or methodology in your research, please cite our work:
+
+```bibtex
+@article{mellert2024collective,
+  title={Collective flow of circadian clock information in honeybee colonies},
+  author={Mellert, Julia and K{\l}os, Weronika and Dormagen, David M and Wild, Benjamin and Zachariae, Adrian and Smith, Michael L and Galizia, C Giovanni and Landgraf, Tim},
+  journal={bioRxiv},
+  pages={2024--07},
+  year={2024},
+  publisher={Cold Spring Harbor Laboratory}
+}
 ```
-or
-```
-python foo.py --run
-```
-and to concatenate the output of the slurm arrays to a single dataframe. It is often the case that the output files are
-too large to be processed without slurm. If that is the case this line should be copied into the [run_individual_job.sh](analysis%2Frun_individual_job.sh)
-script and then run using it accordingly.
-```
-python foo.py --postprocess
-```
-More flags and further information can be found [here](htttps://ww.github.com/walachey/slurmhelper) or 
-with ```python foo.py --help```.
 
-The remaining pyhton scripts can be executed using either the ``run_individual_job.sh`` or the ``run_parallel_jobs.sh`` bash script. For more detailed instructions please refer to the respective python scripts.
+---
 
+<div align="center">
 
-### Figures
-Dive into the jupyter notebooks which contain visualizations of the data.
+**🐝 Made with 💛 for bee research**
 
-``figure_panel_1.ipynb``:
-* movements speeds of the bees as a group or as an individual
-* cosinor fit
-* age distribution and rhythmicity among different age groups
-* cosinor estimates in relation to distance to hive exit
+[📖 Paper](https://www.biorxiv.org/content/10.1101/2024.07.29.605620v1) • [💾 Data](https://zenodo.org/records/10869728) • [🐛 Issues](../../issues) • [🤝 Contributing](../../pulls)
 
-``figure_panel_2.ipyng``:
-* post-interaction movement speed change and speed transfer
-* body-locations involved in speed transfer
-
-``figure_panel_3.ipyng``:
-* spatial distribution of activity phase
-* spatial and temporal distribution of post-interaction movement speed change
-* spatial distribution of phase of simulated agents
-* spatial distribution of activating interaction cascades
-
-``figure_supplementary.ipyng``:
-* Number of bees observed in the two time periods
-
-## Simulation
-
-## Data
-The data for the project can be found and downloaded [here](https://zenodo.org/records/10869728). The data should be moved to the data folder to
-have valid path imports in the scripts.
-
-## Citation
+</div>
