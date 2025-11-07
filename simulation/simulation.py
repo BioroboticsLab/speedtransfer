@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 import warnings
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, Tuple
 
@@ -121,6 +121,8 @@ class SimulationSummary:
     amplitude_group1: float
     amplitude_group2: float
     phase_shift_g2_minus_g1: float
+    rhythmicity_p_value_group1: float
+    rhythmicity_p_value_group2: float
     sine_fit_group1: SineFit
     sine_fit_group2: SineFit
 
@@ -335,6 +337,46 @@ def fit_sine(
     )
 
 
+def _permutation_rhythmicity_test(
+    x: np.ndarray,
+    y: np.ndarray,
+    period_length: float,
+    permutations: int,
+    rng: np.random.Generator,
+) -> float:
+    """
+    Approximate a p-value for rhythmicity via permutation of the measurements.
+
+    Null hypothesis: the observed ordering of y-values has no relationship with
+    the sinusoidal driver (i.e. amplitudes arise by chance). The statistic is the
+    sine-fit amplitude; shuffling destroys rhythmic structure while preserving
+    the marginal distribution. Returns NaN if insufficient data are available.
+    """
+    if permutations <= 0:
+        return math.nan
+
+    mask = ~np.isnan(y)
+    x = x[mask]
+    y = y[mask]
+    if y.size < 5:
+        return math.nan
+
+    observed_fit = fit_sine(x, y, period_length)
+    observed_amp = observed_fit.y_scale
+    if not np.isfinite(observed_amp):
+        return math.nan
+
+    exceedances = 0
+    for _ in range(permutations):
+        shuffled = rng.permutation(y)
+        amp = fit_sine(x, shuffled, period_length).y_scale
+        if amp >= observed_amp:
+            exceedances += 1
+
+    # Add-one smoothing avoids zero p-values with finite permutation counts.
+    return (exceedances + 1) / (permutations + 1)
+
+
 def mgd(
     N: int,
     d: int,
@@ -376,6 +418,7 @@ def run_simulation(
     ablation: Optional[AblationConfig] = None,
     show_point_motion: bool = True,
     save_outputs: bool = True,
+    rhythmicity_permutations: int = 200,
     rng: Optional[np.random.Generator] = None,
 ) -> list[SimulationSummary]:
     """
@@ -395,6 +438,9 @@ def run_simulation(
         Keep matplotlib scatter plots updated. Disable for headless sweeps.
     save_outputs:
         Persist `.mat` files compatible with the MATLAB analysis pipeline.
+    rhythmicity_permutations:
+        Number of permutations used for the sine-amplitude significance test.
+        Set to 0 to skip the statistical check.
     rng:
         Optional NumPy Generator for deterministic sampling.
 
@@ -616,6 +662,12 @@ def run_simulation(
         x_values = np.arange(1, sim_duration + 1, dtype=float)
         sine_fit1 = fit_sine(x_values, group1_mean_time, sim_day)
         sine_fit2 = fit_sine(x_values, group2_mean_time, sim_day)
+        p_value_group1 = _permutation_rhythmicity_test(
+            x_values, group1_mean_time, sim_day, rhythmicity_permutations, rng
+        )
+        p_value_group2 = _permutation_rhythmicity_test(
+            x_values, group2_mean_time, sim_day, rhythmicity_permutations, rng
+        )
         phase_shift = float((sine_fit2.x_offset - sine_fit1.x_offset) % sim_day)
         summaries.append(
             SimulationSummary(
@@ -623,6 +675,8 @@ def run_simulation(
                 amplitude_group1=sine_fit1.y_scale,
                 amplitude_group2=sine_fit2.y_scale,
                 phase_shift_g2_minus_g1=phase_shift,
+                rhythmicity_p_value_group1=p_value_group1,
+                rhythmicity_p_value_group2=p_value_group2,
                 sine_fit_group1=sine_fit1,
                 sine_fit_group2=sine_fit2,
             )
@@ -698,6 +752,7 @@ def run_ablation_study(
     density_factor: float,
     ablations: dict[str, AblationConfig],
     config: Optional[SimulationConfig] = None,
+    rhythmicity_permutations: int = 200,
     rng: Optional[np.random.Generator] = None,
 ) -> dict[str, SimulationSummary]:
     """
@@ -711,6 +766,9 @@ def run_ablation_study(
         Mapping from human-readable label to `AblationConfig`.
     config:
         Optional shared simulation config.
+    rhythmicity_permutations:
+        Number of permutations for the rhythmicity test (forwarded to
+        `run_simulation`).
     rng:
         Optional RNG; if provided it is advanced between runs so each ablation is
         driven by a reproducible, independent stream.
@@ -724,10 +782,44 @@ def run_ablation_study(
             ablation=abl,
             show_point_motion=False,
             save_outputs=False,
+            rhythmicity_permutations=rhythmicity_permutations,
             rng=rng,
         )
         results[label] = summaries[0]
     return results
+
+
+def run_single_factor_ablation_suite(
+    density_factor: float,
+    config: Optional[SimulationConfig] = None,
+    rhythmicity_permutations: int = 200,
+    rng: Optional[np.random.Generator] = None,
+) -> dict[str, SimulationSummary]:
+    """
+    Run baseline plus all single-factor ablations for the given density.
+
+    Returns
+    -------
+    Dict[str, SimulationSummary]
+        Mapping from ablation label to its simulation summary. Includes the
+        "baseline" (no ablation) entry for reference.
+    """
+    configs: dict[str, AblationConfig] = {
+        "baseline": AblationConfig(),
+        "no_walls": AblationConfig(disable_walls=True),
+        "no_homing": AblationConfig(disable_homing=True),
+        "no_speed_transfer": AblationConfig(disable_speed_transfer=True),
+        "no_external_driver": AblationConfig(disable_external_driver=True),
+        "homogenize_turn": AblationConfig(homogenize_turning_noise=True),
+        "homogenize_init": AblationConfig(homogenize_initial_positions=True),
+    }
+    return run_ablation_study(
+        density_factor=density_factor,
+        ablations=configs,
+        config=config,
+        rhythmicity_permutations=rhythmicity_permutations,
+        rng=rng,
+    )
 
 
 def sketch_agents_2D(
