@@ -158,3 +158,9 @@ dmypy.json
 cython_debug/
 
 outputs/
+.vscode/launch.json
+.vscode/settings.json
+path_settings.py
+pyproject.toml
+path_settings.py
+path_settings.py

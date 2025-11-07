@@ -15,7 +15,7 @@ SSH_PASSWORD_2019 = "dbreaderpw"
 REMOTE_BIND_ADDRESS_2019 = ("", 0000)
 
 # Path to data
-DATA_PATH = os.path.join("..", "data")
+DATA_PATH = os.path.join("/Volumes/JD-SSD/velocity_data_2019", "data")
 
 # Path to aggregated data
 AGG_DATA_PATH_2016 = os.path.join("..", "aggregated_results", "2016")
