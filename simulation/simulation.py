@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, Tuple
 
@@ -32,14 +32,134 @@ except ImportError:  # pragma: no cover - SciPy may be unavailable
     _savemat = None
 
 __all__ = [
+    "AblationConfig",
+    "EnvironmentParameters",
+    "GroupParameters",
+    "SimulationConfig",
+    "SimulationParameters",
+    "SimulationSummary",
     "draw_positions_from_gaussian",
     "draw_velocities",
     "fit_sine",
     "mgd",
     "run_simulation",
+    "run_ablation_study",
     "sketch_agents_2D",
     "sketch_agents_3D",
 ]
+
+
+@dataclass
+class GroupParameters:
+    mu: np.ndarray
+    cov: np.ndarray
+    speed_fwd_mu: float
+    speed_fwd_std: float
+    min_fwd_speed: float
+    speed_trn_mu: float
+    speed_trn_std: float
+
+
+@dataclass
+class EnvironmentParameters:
+    comb_size_x: float = 354.0
+    comb_size_y: float = 205.0
+    bins_x: int = 45
+    bins_y: int = 30
+    speed_scale: float = 50.0
+    homing_pull: float = 0.1
+    speed_transfer_scale: float = 1.0
+    interaction_threshold_factor: float = 0.2
+
+    @property
+    def hive_bounds(self) -> np.ndarray:
+        return np.array(
+            [
+                -self.comb_size_x / 2.0,
+                self.comb_size_x / 2.0,
+                -self.comb_size_y / 2.0,
+                self.comb_size_y / 2.0,
+            ],
+            dtype=float,
+        )
+
+
+@dataclass
+class SimulationParameters:
+    day_duration: int = 400
+    sim_duration: int = 800
+
+
+@dataclass
+class OutputOptions:
+    save_mat: bool = True
+    output_dir: Path = Path(".")
+
+
+@dataclass
+class AblationConfig:
+    disable_walls: bool = False
+    disable_homing: bool = False
+    disable_speed_transfer: bool = False
+    disable_external_driver: bool = False
+    homogenize_turning_noise: bool = False
+    homogenize_initial_positions: bool = False
+
+
+@dataclass
+class SimulationConfig:
+    env: EnvironmentParameters
+    sim: SimulationParameters
+    group1: GroupParameters
+    group2: GroupParameters
+    output: OutputOptions
+
+
+@dataclass
+class SimulationSummary:
+    density_factor: float
+    amplitude_group1: float
+    amplitude_group2: float
+    phase_shift_g2_minus_g1: float
+    sine_fit_group1: SineFit
+    sine_fit_group2: SineFit
+
+
+def default_simulation_config() -> SimulationConfig:
+    env = EnvironmentParameters()
+    sim = SimulationParameters()
+    group1 = GroupParameters(
+        mu=np.array([-175.0, -100.0]),
+        cov=env.speed_scale * np.eye(2),
+        speed_fwd_mu=0.05,
+        speed_fwd_std=0.02,
+        min_fwd_speed=-0.05,
+        speed_trn_mu=0.0,
+        speed_trn_std=0.5,
+    )
+    group2 = GroupParameters(
+        mu=np.array([0.0, 0.0]),
+        cov=env.speed_scale * np.eye(2),
+        speed_fwd_mu=0.02,
+        speed_fwd_std=0.01,
+        min_fwd_speed=-0.05,
+        speed_trn_mu=0.0,
+        speed_trn_std=0.5,
+    )
+    output = OutputOptions()
+    return SimulationConfig(env=env, sim=sim, group1=group1, group2=group2, output=output)
+
+
+def _copy_group_params(group: GroupParameters) -> GroupParameters:
+    return GroupParameters(
+        mu=np.array(group.mu, dtype=float),
+        cov=np.array(group.cov, dtype=float),
+        speed_fwd_mu=group.speed_fwd_mu,
+        speed_fwd_std=group.speed_fwd_std,
+        min_fwd_speed=group.min_fwd_speed,
+        speed_trn_mu=group.speed_trn_mu,
+        speed_trn_std=group.speed_trn_std,
+    )
 
 
 def _ensure_rng(rng: Optional[np.random.Generator] = None) -> np.random.Generator:
@@ -252,74 +372,91 @@ def mgd(
 
 def run_simulation(
     density_factors: Iterable[float] = (3.0, 7.0, 10.0),
+    config: Optional[SimulationConfig] = None,
+    ablation: Optional[AblationConfig] = None,
     show_point_motion: bool = True,
+    save_outputs: bool = True,
     rng: Optional[np.random.Generator] = None,
-) -> None:
+) -> list[SimulationSummary]:
     """
     Execute the full colony simulation for the requested density factors.
 
-    The routine intentionally sticks close to the MATLAB structure: the nested
-    loops, the per-step statistics collection, and even the plotting order are
-    maintained. Only minor Python niceties (vectorization, helpers, dataclasses)
-    have been introduced to keep the code approachable to MATLAB users.
+    Parameters
+    ----------
+    density_factors:
+        Multipliers applied to the baseline group sizes (500 agents per group).
+    config:
+        Optional simulation configuration. When omitted the defaults that mimic
+        the MATLAB values are used.
+    ablation:
+        Toggle individual components (walls, homing, drivers, etc.) so that
+        ablation sweeps can be run without touching the core logic.
+    show_point_motion:
+        Keep matplotlib scatter plots updated. Disable for headless sweeps.
+    save_outputs:
+        Persist `.mat` files compatible with the MATLAB analysis pipeline.
+    rng:
+        Optional NumPy Generator for deterministic sampling.
+
+    Returns
+    -------
+    List[SimulationSummary]
+        One summary per density factor, capturing amplitudes and phase shifts to
+        support rhythmicity comparisons during ablation studies.
     """
     rng = _ensure_rng(rng)
+    cfg = config or default_simulation_config()
+    abl = ablation or AblationConfig()
+
+    summaries: list[SimulationSummary] = []
 
     for density_factor in density_factors:
         print(f"density factor: {density_factor:.1f}")
 
-        speed_scale = 50.0
-        homing_pull = 0.1
-        speed_transfer_scale = 1.0
+        group1_cfg = _copy_group_params(cfg.group1)
+        group2_cfg = _copy_group_params(cfg.group2)
 
-        group1_cfg = {
-            "mu": np.array([-175.0, -100.0]),
-            "cov": speed_scale * np.eye(2),
-            "speed_fwd_mu": 0.05,
-            "speed_fwd_std": 0.02,
-            "min_fwd_speed": -0.05,
-            "speed_trn_mu": 0.0,
-            "speed_trn_std": 0.5,
-        }
-        group2_cfg = {
-            "mu": np.array([0.0, 0.0]),
-            "cov": speed_scale * np.eye(2),
-            "speed_fwd_mu": 0.02,
-            "speed_fwd_std": 0.01,
-            "min_fwd_speed": -0.05,
-            "speed_trn_mu": 0.0,
-            "speed_trn_std": 0.5,
-        }
+        if abl.homogenize_initial_positions:
+            shared_mu = 0.5 * (group1_cfg.mu + group2_cfg.mu)
+            shared_cov = 0.5 * (group1_cfg.cov + group2_cfg.cov)
+            group1_cfg.mu = shared_mu.copy()
+            group2_cfg.mu = shared_mu.copy()
+            group1_cfg.cov = shared_cov.copy()
+            group2_cfg.cov = shared_cov.copy()
+
+        if abl.homogenize_turning_noise:
+            mean_turn_mu = 0.5 * (group1_cfg.speed_trn_mu + group2_cfg.speed_trn_mu)
+            mean_turn_std = 0.5 * (group1_cfg.speed_trn_std + group2_cfg.speed_trn_std)
+            group1_cfg.speed_trn_mu = group2_cfg.speed_trn_mu = mean_turn_mu
+            group1_cfg.speed_trn_std = group2_cfg.speed_trn_std = mean_turn_std
 
         group1_size = int(round(500 * density_factor))
         group2_size = int(round(500 * density_factor))
         total_agents = group1_size + group2_size
 
-        hive_bounds = np.array([-354 / 2, 354 / 2, -205 / 2, 205 / 2], dtype=float)
-        bins_x = 45
-        bins_y = 30
+        hive_bounds = cfg.env.hive_bounds
+        bins_x = cfg.env.bins_x
+        bins_y = cfg.env.bins_y
 
         agents_group1 = np.hstack(
             [
-                mgd(group1_size, 2, group1_cfg["mu"], group1_cfg["cov"], rng=rng),
+                mgd(group1_size, 2, group1_cfg.mu, group1_cfg.cov, rng=rng),
                 rng.uniform(0.0, 2.0 * np.pi, size=(group1_size, 1)),
             ]
         )
         agents_group2 = np.hstack(
             [
-                mgd(group2_size, 2, group2_cfg["mu"], group2_cfg["cov"], rng=rng),
+                mgd(group2_size, 2, group2_cfg.mu, group2_cfg.cov, rng=rng),
                 rng.uniform(0.0, 2.0 * np.pi, size=(group2_size, 1)),
             ]
         )
         agents = np.vstack([agents_group1, agents_group2])
 
-        # Holds per-agent speed bonuses gained via interactions
         speed_transfers = np.zeros(total_agents, dtype=float)
 
-        sim_day = 400
-        sim_duration = 800
+        sim_day = cfg.sim.day_duration
+        sim_duration = cfg.sim.sim_duration
 
-        # Preallocate arrays matching the MATLAB OUT struct.
         speeds_history = np.full((total_agents, sim_duration), np.nan, dtype=float)
         cov_history = np.full((2, sim_duration), np.nan, dtype=float)
         speeds_bin = np.full((bins_y, bins_x, sim_duration), np.nan, dtype=float)
@@ -338,16 +475,21 @@ def run_simulation(
             ax.set_xlim(window_bounds[0], window_bounds[1])
             ax.set_ylim(window_bounds[2], window_bounds[3])
 
+        interaction_threshold = math.sqrt(cfg.env.speed_scale) * cfg.env.interaction_threshold_factor
+
         for t in range(sim_duration):
             time_step = t + 1
 
-            speed_external_driver = (
-                speed_scale
-                * speed_transfer_scale
-                * group1_cfg["speed_fwd_mu"]
-                * 0.5
-                * (math.sin(time_step * 2.0 * math.pi / sim_day) + 1.0)
-            )
+            if abl.disable_external_driver:
+                speed_external_driver = 0.0
+            else:
+                speed_external_driver = (
+                    cfg.env.speed_scale
+                    * cfg.env.speed_transfer_scale
+                    * group1_cfg.speed_fwd_mu
+                    * 0.5
+                    * (math.sin(time_step * 2.0 * math.pi / sim_day) + 1.0)
+                )
             external_vector = np.concatenate(
                 [
                     np.full(group1_size, speed_external_driver, dtype=float),
@@ -355,75 +497,74 @@ def run_simulation(
                 ]
             )
 
-            # Draw intrinsic forward speeds for each group and clip below the
-            # minimum specified drift.
             group1_speeds = np.maximum(
-                group1_cfg["min_fwd_speed"],
-                speed_scale * group1_cfg["speed_fwd_std"] * rng.standard_normal(group1_size)
-                + speed_scale * group1_cfg["speed_fwd_mu"],
+                group1_cfg.min_fwd_speed,
+                cfg.env.speed_scale * group1_cfg.speed_fwd_std * rng.standard_normal(group1_size)
+                + cfg.env.speed_scale * group1_cfg.speed_fwd_mu,
             )
             group2_speeds = np.maximum(
-                group2_cfg["min_fwd_speed"],
-                speed_scale * group2_cfg["speed_fwd_std"] * rng.standard_normal(group2_size)
-                + speed_scale * group2_cfg["speed_fwd_mu"],
+                group2_cfg.min_fwd_speed,
+                cfg.env.speed_scale * group2_cfg.speed_fwd_std * rng.standard_normal(group2_size)
+                + cfg.env.speed_scale * group2_cfg.speed_fwd_mu,
             )
-            speeds = np.concatenate([group1_speeds, group2_speeds]) + speed_transfers + external_vector
+            speeds = np.concatenate([group1_speeds, group2_speeds]) + external_vector
+            if not abl.disable_speed_transfer:
+                speeds += speed_transfers
 
-            group1_turn = group1_cfg["speed_trn_std"] * rng.standard_normal(group1_size) + group1_cfg["speed_trn_mu"]
-            group2_turn = group2_cfg["speed_trn_std"] * rng.standard_normal(group2_size) + group2_cfg["speed_trn_mu"]
+            group1_turn = group1_cfg.speed_trn_std * rng.standard_normal(group1_size) + group1_cfg.speed_trn_mu
+            group2_turn = group2_cfg.speed_trn_std * rng.standard_normal(group2_size) + group2_cfg.speed_trn_mu
             speeds_turn = np.concatenate([group1_turn, group2_turn])
 
-            # Base translation is along the current heading by the chosen speed.
             velocities = speeds[:, None] * np.column_stack(
                 [np.cos(agents[:, 2]), np.sin(agents[:, 2])]
             )
 
-            home1 = np.tile(group1_cfg["mu"], (group1_size, 1)) - agents[idx_group1, :2]
-            home1 = _normalize_rows(home1)
-            velocities[idx_group1] += (
-                (speed_scale * homing_pull * group1_cfg["speed_fwd_mu"])
-                + (group1_cfg["speed_fwd_mu"] * speed_transfer_scale / 2.0)
-            ) * home1
+            if not abl.disable_homing:
+                home1 = np.tile(group1_cfg.mu, (group1_size, 1)) - agents[idx_group1, :2]
+                home1 = _normalize_rows(home1)
+                velocities[idx_group1] += (
+                    (cfg.env.speed_scale * cfg.env.homing_pull * group1_cfg.speed_fwd_mu)
+                    + (group1_cfg.speed_fwd_mu * cfg.env.speed_transfer_scale / 2.0)
+                ) * home1
 
-            home2 = np.tile(group2_cfg["mu"], (group2_size, 1)) - agents[idx_group2, :2]
-            home2 = _normalize_rows(home2)
-            velocities[idx_group2] += (speed_scale * homing_pull * group2_cfg["speed_fwd_mu"]) * home2
+                home2 = np.tile(group2_cfg.mu, (group2_size, 1)) - agents[idx_group2, :2]
+                home2 = _normalize_rows(home2)
+                velocities[idx_group2] += (cfg.env.speed_scale * cfg.env.homing_pull * group2_cfg.speed_fwd_mu) * home2
 
             agents[:, :2] += velocities
             agents[:, 2] += speeds_turn
 
-            for axis, bound_idx in enumerate((0, 1)):
-                lower = hive_bounds[bound_idx * 2]
-                upper = hive_bounds[bound_idx * 2 + 1]
+            if not abl.disable_walls:
+                for axis, bound_idx in enumerate((0, 1)):
+                    lower = hive_bounds[bound_idx * 2]
+                    upper = hive_bounds[bound_idx * 2 + 1]
 
-                # Enforce reflective boundaries: clamp positions and point agents inward.
-                below = agents[:, axis] < lower
-                agents[below, axis] = lower
-                agents[below, 2] = np.arctan2(-agents[below, 1], -agents[below, 0])
+                    below = agents[:, axis] < lower
+                    agents[below, axis] = lower
+                    agents[below, 2] = np.arctan2(-agents[below, 1], -agents[below, 0])
 
-                above = agents[:, axis] > upper
-                agents[above, axis] = upper
-                agents[above, 2] = np.arctan2(-agents[above, 1], -agents[above, 0])
+                    above = agents[:, axis] > upper
+                    agents[above, axis] = upper
+                    agents[above, 2] = np.arctan2(-agents[above, 1], -agents[above, 0])
 
-            # Pairwise distance matrix (N x N) used to decide interactions.
-            diff = agents[:, None, :2] - agents[None, :, :2]
-            distances = np.linalg.norm(diff, axis=2)
-            interaction_threshold = math.sqrt(speed_scale) * 0.2
-            np.fill_diagonal(distances, 2.0 * interaction_threshold)
-            interactions = distances < interaction_threshold
-            interacting_rows, interacting_cols = np.where(interactions)
+            if not abl.disable_speed_transfer:
+                diff = agents[:, None, :2] - agents[None, :, :2]
+                distances = np.linalg.norm(diff, axis=2)
+                np.fill_diagonal(distances, 2.0 * interaction_threshold)
+                interactions = distances < interaction_threshold
+                interacting_rows, interacting_cols = np.where(interactions)
 
-            speed_transfers *= 0.0
-            if interacting_rows.size:
-                # Pull speed from faster neighbors while forbidding self-loops
-                faster = speeds[interacting_cols] - speeds[interacting_rows]
-                faster = np.where(speeds[interacting_rows] < speeds[interacting_cols], faster, 0.0)
-                np.maximum.at(speed_transfers, interacting_rows, faster)
+                speed_transfers *= 0.0
+                if interacting_rows.size:
+                    faster = speeds[interacting_cols] - speeds[interacting_rows]
+                    faster = np.where(speeds[interacting_rows] < speeds[interacting_cols], faster, 0.0)
+                    np.maximum.at(speed_transfers, interacting_rows, faster)
+            else:
+                speed_transfers *= 0.0
 
             positions_history[:, t, :] = agents[:, :2]
             speeds_history[:, t] = speeds
 
-            # Bin current speeds per spatial cell to reconstruct the MATLAB heatmaps.
             means, counts = _bin_statistics(
                 agents[:, 0],
                 agents[:, 1],
@@ -475,6 +616,17 @@ def run_simulation(
         x_values = np.arange(1, sim_duration + 1, dtype=float)
         sine_fit1 = fit_sine(x_values, group1_mean_time, sim_day)
         sine_fit2 = fit_sine(x_values, group2_mean_time, sim_day)
+        phase_shift = float((sine_fit2.x_offset - sine_fit1.x_offset) % sim_day)
+        summaries.append(
+            SimulationSummary(
+                density_factor=density_factor,
+                amplitude_group1=sine_fit1.y_scale,
+                amplitude_group2=sine_fit2.y_scale,
+                phase_shift_g2_minus_g1=phase_shift,
+                sine_fit_group1=sine_fit1,
+                sine_fit_group2=sine_fit2,
+            )
+        )
 
         phase_vs_location = np.full((bins_y, bins_x), np.nan, dtype=float)
         number_of_samples_vs_location = np.nansum(speeds_bin, axis=2)
@@ -485,55 +637,97 @@ def run_simulation(
                 sine = fit_sine(x_values, series, sim_day)
                 phase_vs_location[row, col] = sine.x_offset if not math.isnan(sine.y_offset) else np.nan
 
-        plt.figure(3)
-        ax3 = plt.gca()
-        im = ax3.imshow(phase_vs_location, origin="lower")
-        plt.colorbar(im, ax=ax3)
-        ax3.set_title(f"Phase vs Location (density {density_factor:.1f})")
+        if save_outputs and cfg.output.save_mat:
+            cfg.output.output_dir.mkdir(parents=True, exist_ok=True)
+            out_filename_phase = cfg.output.output_dir / f"phase_vs_location_density_{density_factor:.1f}.mat"
+            out_filename_out = cfg.output.output_dir / f"OUT_density_{density_factor:.1f}.mat"
+            _save_mat(
+                out_filename_phase,
+                {
+                    "phase_vs_location": phase_vs_location,
+                    "number_of_sample_vs_location": number_of_samples_vs_location,
+                },
+            )
+            _save_mat(
+                out_filename_out,
+                {
+                    "speeds": speeds_history,
+                    "cov": cov_history,
+                    "speeds_bin": speeds_bin,
+                    "speeds_bin_n": speeds_bin_counts,
+                    "positions": positions_history,
+                },
+            )
 
-        out_filename_phase = f"phase_vs_location_density_{density_factor:.1f}.mat"
-        out_filename_out = f"OUT_density_{density_factor:.1f}.mat"
-        _save_mat(
-            out_filename_phase,
-            {
-                "phase_vs_location": phase_vs_location,
-                "number_of_sample_vs_location": number_of_samples_vs_location,
-            },
-        )
-        _save_mat(
-            out_filename_out,
-            {
-                "speeds": speeds_history,
-                "cov": cov_history,
-                "speeds_bin": speeds_bin,
-                "speeds_bin_n": speeds_bin_counts,
-                "positions": positions_history,
-            },
-        )
+        if show_point_motion or save_outputs:
+            plt.figure(2)
+            ax2 = plt.gca()
+            ax2.clear()
+            ax2.plot(
+                np.tile(x_values, (group1_size, 1)).T,
+                speeds_history[idx_group1].T,
+                ".b",
+                alpha=0.3,
+            )
+            ax2.plot(
+                np.tile(x_values, (group2_size, 1)).T,
+                speeds_history[idx_group2].T,
+                ".g",
+                alpha=0.3,
+            )
+            ax2.plot(x_values, group2_mean_time, "r", label="Group 2 mean")
+            ax2.plot(x_values, group1_mean_time, "y", label="Group 1 mean")
+            ax2.plot(x_values, sine_fit1(x_values), label="Group 1 sine fit")
+            ax2.plot(x_values, sine_fit2(x_values), label="Group 2 sine fit")
+            ax2.set_title(f"Speed Evolution (density {density_factor:.1f})")
+            ax2.set_xlabel("Time step")
+            ax2.set_ylabel("Speed")
+            ax2.legend()
 
-        plt.figure(2)
-        ax2 = plt.gca()
-        ax2.clear()
-        ax2.plot(
-            np.tile(x_values, (group1_size, 1)).T,
-            speeds_history[idx_group1].T,
-            ".b",
-            alpha=0.3,
+            plt.figure(3)
+            ax3 = plt.gca()
+            ax3.clear()
+            im = ax3.imshow(phase_vs_location, origin="lower")
+            plt.colorbar(im, ax=ax3)
+            ax3.set_title(f"Phase vs Location (density {density_factor:.1f})")
+
+    return summaries
+
+
+def run_ablation_study(
+    density_factor: float,
+    ablations: dict[str, AblationConfig],
+    config: Optional[SimulationConfig] = None,
+    rng: Optional[np.random.Generator] = None,
+) -> dict[str, SimulationSummary]:
+    """
+    Convenience helper to batch-run ablation settings and collect summaries.
+
+    Parameters
+    ----------
+    density_factor:
+        Single density factor shared across the ablation sweep.
+    ablations:
+        Mapping from human-readable label to `AblationConfig`.
+    config:
+        Optional shared simulation config.
+    rng:
+        Optional RNG; if provided it is advanced between runs so each ablation is
+        driven by a reproducible, independent stream.
+    """
+    results: dict[str, SimulationSummary] = {}
+    for label, abl in ablations.items():
+        print(f"\n=== Ablation: {label} ===")
+        summaries = run_simulation(
+            density_factors=(density_factor,),
+            config=config,
+            ablation=abl,
+            show_point_motion=False,
+            save_outputs=False,
+            rng=rng,
         )
-        ax2.plot(
-            np.tile(x_values, (group2_size, 1)).T,
-            speeds_history[idx_group2].T,
-            ".g",
-            alpha=0.3,
-        )
-        ax2.plot(x_values, group2_mean_time, "r", label="Group 2 mean")
-        ax2.plot(x_values, group1_mean_time, "y", label="Group 1 mean")
-        ax2.plot(x_values, sine_fit1(x_values), label="Group 1 sine fit")
-        ax2.plot(x_values, sine_fit2(x_values), label="Group 2 sine fit")
-        ax2.set_title(f"Speed Evolution (density {density_factor:.1f})")
-        ax2.set_xlabel("Time step")
-        ax2.set_ylabel("Speed")
-        ax2.legend()
+        results[label] = summaries[0]
+    return results
 
 
 def sketch_agents_2D(
