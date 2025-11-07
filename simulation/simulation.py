@@ -9,6 +9,11 @@ This module consolidates functionality from the following MATLAB sources:
     - run_simulation.m
     - sketch_agents_2D.m
     - sketch_agents_3D.m
+
+It mirrors MATLAB behaviour while remaining idiomatic Python. All heavy numerical
+work is delegated to NumPy/SciPy, and plotting is handled via Matplotlib just like
+MATLAB figure windows. The entry point `run_simulation` reproduces the main
+simulation loop, while the helper functions expose the standalone utilities.
 """
 from __future__ import annotations
 
@@ -38,17 +43,24 @@ __all__ = [
 
 
 def _ensure_rng(rng: Optional[np.random.Generator] = None) -> np.random.Generator:
+    """Normalize RNG handling so every function can accept an optional generator."""
     return rng if rng is not None else np.random.default_rng()
 
 
 def _normalize_rows(arr: np.ndarray) -> np.ndarray:
+    """Normalize each row vector while guarding against zero-length rows."""
     norms = np.linalg.norm(arr, axis=1, keepdims=True)
     norms = np.where(norms == 0, 1.0, norms)
     return arr / norms
 
 
 def _covariance_sqrt(covariance: np.ndarray) -> np.ndarray:
-    """Return the principal square root of a symmetric covariance matrix."""
+    """
+    Return the principal square root of a symmetric covariance matrix.
+
+    MATLAB relies on chol/sqrtm; here we do an eigen-decomposition to remain
+    numerically stable even when the covariance is only semi-definite.
+    """
     eigvals, eigvecs = np.linalg.eigh(covariance)
     if np.any(eigvals < -1e-12):
         raise ValueError("Covariance matrix must be positive semi-definite.")
@@ -112,6 +124,13 @@ def draw_positions_from_gaussian(
     covariance: Sequence[Sequence[float]],
     rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
+    """
+    Sample a single 2D position from a specified multivariate Gaussian.
+
+    This mirrors the small MATLAB helper and is primarily used during agent
+    initialization. The function name is kept for compatibility, although the
+    implementation simply forwards to NumPy's multivariate_normal.
+    """
     rng = _ensure_rng(rng)
     mean_arr = np.asarray(mean, dtype=float)
     cov_arr = np.asarray(covariance, dtype=float)
@@ -126,7 +145,12 @@ def draw_velocities(
     v_trn_std: float,
     rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
-    """Placeholder translation of the empty MATLAB function."""
+    """
+    Placeholder translation of the empty MATLAB function.
+
+    The MATLAB source never implemented this routine, so we intentionally raise
+    to signal callers that a bespoke velocity sampler still needs definition.
+    """
     raise NotImplementedError("draw_velocities was not implemented in MATLAB.")
 
 
@@ -138,6 +162,7 @@ class SineFit:
     period: float
 
     def __call__(self, x: Sequence[float] | np.ndarray) -> np.ndarray:
+        """Evaluate the fitted sine curve at new coordinates."""
         x_arr = np.asarray(x, dtype=float)
         omega = 2.0 * np.pi / self.period
         return self.y_offset + np.sin(omega * (x_arr - self.x_offset)) * self.y_scale
@@ -148,6 +173,14 @@ def fit_sine(
     y: Sequence[float],
     period_length: float,
 ) -> SineFit:
+    """
+    Fit a sine with fixed period to (x, y) samples by linear regression.
+
+    MATLAB used `fittype` + `fit` which performs nonlinear optimisation. The
+    equivalent in Python is to fit the linearized sin/cos basis and convert it
+    back to amplitude/phase form, avoiding iterative solvers while keeping the
+    same expressivity.
+    """
     x_arr = np.asarray(x, dtype=float)
     y_arr = np.asarray(y, dtype=float)
     mask = ~np.isnan(y_arr)
@@ -158,6 +191,7 @@ def fit_sine(
     y_arr = y_arr[mask]
 
     omega = 2.0 * np.pi / period_length
+    # Fit y = offset + A*sin(ωx) + B*cos(ωx) and convert to phase/amplitude form
     design = np.column_stack(
         [
             np.ones_like(x_arr),
@@ -188,6 +222,13 @@ def mgd(
     covariance: Sequence[Sequence[float]],
     rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
+    """
+    Generate `N` samples from a multivariate Gaussian with mean/covariance.
+
+    The MATLAB helper zero-centres the initial `randn` draws before imposing the
+    desired covariance. We mimic that approach (it matters for small `N`) and
+    use an eigen-based square root so positive semi-definite covariances behave.
+    """
     rng = _ensure_rng(rng)
     mean_arr = np.asarray(rmean, dtype=float)
     cov_arr = np.asarray(covariance, dtype=float)
@@ -203,6 +244,7 @@ def mgd(
     if N > 1:
         samples -= samples.mean(axis=0, keepdims=True)
 
+    # Impose the desired covariance via the principal matrix square root
     transform = _covariance_sqrt(cov_arr)
     samples = samples @ transform.T + mean_arr
     return samples
@@ -213,6 +255,14 @@ def run_simulation(
     show_point_motion: bool = True,
     rng: Optional[np.random.Generator] = None,
 ) -> None:
+    """
+    Execute the full colony simulation for the requested density factors.
+
+    The routine intentionally sticks close to the MATLAB structure: the nested
+    loops, the per-step statistics collection, and even the plotting order are
+    maintained. Only minor Python niceties (vectorization, helpers, dataclasses)
+    have been introduced to keep the code approachable to MATLAB users.
+    """
     rng = _ensure_rng(rng)
 
     for density_factor in density_factors:
@@ -263,11 +313,13 @@ def run_simulation(
         )
         agents = np.vstack([agents_group1, agents_group2])
 
+        # Holds per-agent speed bonuses gained via interactions
         speed_transfers = np.zeros(total_agents, dtype=float)
 
         sim_day = 400
         sim_duration = 800
 
+        # Preallocate arrays matching the MATLAB OUT struct.
         speeds_history = np.full((total_agents, sim_duration), np.nan, dtype=float)
         cov_history = np.full((2, sim_duration), np.nan, dtype=float)
         speeds_bin = np.full((bins_y, bins_x, sim_duration), np.nan, dtype=float)
@@ -303,6 +355,8 @@ def run_simulation(
                 ]
             )
 
+            # Draw intrinsic forward speeds for each group and clip below the
+            # minimum specified drift.
             group1_speeds = np.maximum(
                 group1_cfg["min_fwd_speed"],
                 speed_scale * group1_cfg["speed_fwd_std"] * rng.standard_normal(group1_size)
@@ -319,6 +373,7 @@ def run_simulation(
             group2_turn = group2_cfg["speed_trn_std"] * rng.standard_normal(group2_size) + group2_cfg["speed_trn_mu"]
             speeds_turn = np.concatenate([group1_turn, group2_turn])
 
+            # Base translation is along the current heading by the chosen speed.
             velocities = speeds[:, None] * np.column_stack(
                 [np.cos(agents[:, 2]), np.sin(agents[:, 2])]
             )
@@ -341,6 +396,7 @@ def run_simulation(
                 lower = hive_bounds[bound_idx * 2]
                 upper = hive_bounds[bound_idx * 2 + 1]
 
+                # Enforce reflective boundaries: clamp positions and point agents inward.
                 below = agents[:, axis] < lower
                 agents[below, axis] = lower
                 agents[below, 2] = np.arctan2(-agents[below, 1], -agents[below, 0])
@@ -349,6 +405,7 @@ def run_simulation(
                 agents[above, axis] = upper
                 agents[above, 2] = np.arctan2(-agents[above, 1], -agents[above, 0])
 
+            # Pairwise distance matrix (N x N) used to decide interactions.
             diff = agents[:, None, :2] - agents[None, :, :2]
             distances = np.linalg.norm(diff, axis=2)
             interaction_threshold = math.sqrt(speed_scale) * 0.2
@@ -358,6 +415,7 @@ def run_simulation(
 
             speed_transfers *= 0.0
             if interacting_rows.size:
+                # Pull speed from faster neighbors while forbidding self-loops
                 faster = speeds[interacting_cols] - speeds[interacting_rows]
                 faster = np.where(speeds[interacting_rows] < speeds[interacting_cols], faster, 0.0)
                 np.maximum.at(speed_transfers, interacting_rows, faster)
@@ -365,6 +423,7 @@ def run_simulation(
             positions_history[:, t, :] = agents[:, :2]
             speeds_history[:, t] = speeds
 
+            # Bin current speeds per spatial cell to reconstruct the MATLAB heatmaps.
             means, counts = _bin_statistics(
                 agents[:, 0],
                 agents[:, 1],
@@ -482,6 +541,11 @@ def sketch_agents_2D(
     steps: int = 1000,
     rng: Optional[np.random.Generator] = None,
 ) -> None:
+    """
+    Minimal 2D random walk visualisation used during the MATLAB prototyping stage.
+    Agents are initialised from a Gaussian cloud and move according to noisy
+    forward/turn speeds. Intended for qualitative inspection only.
+    """
     rng = _ensure_rng(rng)
     mu = [0.0, 0.0]
     cov = np.eye(2)
@@ -521,6 +585,11 @@ def sketch_agents_3D(
     steps: int = 1000,
     rng: Optional[np.random.Generator] = None,
 ) -> None:
+    """
+    Two-group variant of the sketching tool that visualises interactions and
+    homing behaviour. The implementation mirrors the MATLAB script closely so
+    any observed patterns can be compared across languages.
+    """
     rng = _ensure_rng(rng)
     mu1 = [-1.0, 0.0]
     mu2 = [1.0, 0.0]
