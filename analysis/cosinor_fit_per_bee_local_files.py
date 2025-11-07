@@ -15,11 +15,12 @@ python cosinor_fit_per_bee.py
 """
 
 
-def generate_jobs_2016():
+def generate_jobs_2016(num_processes: int = 1):
 
     # job im imports
     import path_settings
     import pandas as pd
+    from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
     # set dates
@@ -40,8 +41,10 @@ def generate_jobs_2016():
 
     # iterate through all bees
     result_list = []
-    for bee_id in alive_bees:
-        result = run_job(
+
+    # helper to submit jobs
+    def _submit_args(bee_id):
+        return dict(
             bee_id=bee_id,
             from_dt=from_dt,
             to_dt=to_dt,
@@ -49,19 +52,40 @@ def generate_jobs_2016():
             second=second,
         )
 
-        if type(result) is dict:
-            continue
-        else:
-            result_list.append(result)
+    if num_processes and num_processes > 1:
+        # Parallel execution
+        with ProcessPoolExecutor(max_workers=num_processes) as executor:
+            futures = [executor.submit(run_job, **_submit_args(bee_id)) for bee_id in alive_bees]
+            for fut in as_completed(futures):
+                try:
+                    result = fut.result()
+                    if not isinstance(result, dict):
+                        result_list.append(result)
+                except Exception as e:
+                    # Skip failed jobs but print a note
+                    print(f"[generate_jobs_2016] bee job failed: {e}")
+    else:
+        # Serial fallback
+        for bee_id in alive_bees:
+            result = run_job(
+                bee_id=bee_id,
+                from_dt=from_dt,
+                to_dt=to_dt,
+                velocity_df_path=velocity_df_path,
+                second=second,
+            )
+            if not isinstance(result, dict):
+                result_list.append(result)
     df = pd.concat(result_list)
 
     # save df
     df.to_csv(path_settings.COSINOR_DF_PATH_2016, index=False)
 
 
-def generate_jobs_2019():
+def generate_jobs_2019(num_processes: int = 1):
     import path_settings
     import pandas as pd
+    from concurrent.futures import ProcessPoolExecutor, as_completed
 
     # set dates
     from_dt = datetime.datetime(2019, 8, 20, hour=12, tzinfo=pytz.UTC)
@@ -81,8 +105,10 @@ def generate_jobs_2019():
 
     # iterate through all bees
     result_list = []
-    for bee_id in alive_bees:
-        result = run_job(
+
+    # helper to submit jobs
+    def _submit_args(bee_id):
+        return dict(
             bee_id=bee_id,
             from_dt=from_dt,
             to_dt=to_dt,
@@ -90,10 +116,30 @@ def generate_jobs_2019():
             second=second,
         )
 
-        if type(result) is dict:
-            continue
-        else:
-            result_list.append(result)
+    if num_processes and num_processes > 1:
+        # Parallel execution
+        with ProcessPoolExecutor(max_workers=num_processes) as executor:
+            futures = [executor.submit(run_job, **_submit_args(bee_id)) for bee_id in alive_bees]
+            for fut in as_completed(futures):
+                try:
+                    result = fut.result()
+                    if not isinstance(result, dict):
+                        result_list.append(result)
+                except Exception as e:
+                    # Skip failed jobs but print a note
+                    print(f"[generate_jobs_2019] bee job failed: {e}")
+    else:
+        # Serial fallback
+        for bee_id in alive_bees:
+            result = run_job(
+                bee_id=bee_id,
+                from_dt=from_dt,
+                to_dt=to_dt,
+                velocity_df_path=velocity_df_path,
+                second=second,
+            )
+            if not isinstance(result, dict):
+                result_list.append(result)
     df = pd.concat(result_list)
 
     # save df
@@ -127,17 +173,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--year", type=int, help="Which year to analyze the data for. (2016 or 2019)"
     )
+    parser.add_argument(
+        "--num-processes",
+        type=int,
+        default=1,
+        help="Number of worker processes for parallel execution (2019 only)."
+    )
 
     args = parser.parse_args()
     year = args.year
 
     if int(year) == 2016:
-        generate_jobs_2016()
+        generate_jobs_2016(num_processes=args.num_processes)
     elif int(year) == 2019:
-        generate_jobs_2019()
+        generate_jobs_2019(num_processes=args.num_processes)
     else:
         raise Exception(f"Invalid year: {year}")
-
-
-
-
