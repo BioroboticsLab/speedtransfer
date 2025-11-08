@@ -789,7 +789,7 @@ def run_simulation(
         )
 
         phase_vs_location = np.full((bins_y, bins_x), np.nan, dtype=float)
-        number_of_samples_vs_location = np.nansum(speeds_bin, axis=2)
+        number_of_samples_vs_location = np.sum(speeds_bin_counts, axis=2)
 
         for row in range(bins_y):
             for col in range(bins_x):
@@ -842,17 +842,18 @@ def run_simulation(
             ax2.plot(x_values, group1_mean_time, "y", label="Group 1 mean")
             ax2.plot(x_values, sine_fit1(x_values), label="Group 1 sine fit")
             ax2.plot(x_values, sine_fit2(x_values), label="Group 2 sine fit")
-            ax2.set_title(f"Speed Evolution (density {density_factor:.1f})")
-            ax2.set_xlabel("Time step")
-            ax2.set_ylabel("Speed")
-            ax2.legend()
+        ax2.set_title(f"Speed Evolution (density {density_factor:.1f})")
+        ax2.set_xlabel("Time step")
+        ax2.set_ylabel("Speed")
+        ax2.legend()
 
-            fig_phase = plt.figure(3)
-            ax3 = fig_phase.gca()
-            ax3.clear()
-            im = ax3.imshow(phase_vs_location, origin="lower")
-            plt.colorbar(im, ax=ax3)
-            ax3.set_title(f"Phase vs Location (density {density_factor:.1f})")
+        fig_phase = plt.figure(3)
+        ax3 = fig_phase.gca()
+        ax3.clear()
+        phase_display = np.mod(phase_vs_location, 360.0)
+        im = ax3.imshow(phase_display, origin="lower", cmap="twilight", vmin=0, vmax=360)
+        plt.colorbar(im, ax=ax3, label="Phase (deg)")
+        ax3.set_title(f"Phase vs Location (density {density_factor:.1f})")
 
         if save_outputs:
             cfg.output.output_dir.mkdir(parents=True, exist_ok=True)
