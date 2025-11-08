@@ -252,6 +252,34 @@ def _phase_to_degrees(phase_steps: float, period: float) -> float:
     return normalized * 360.0
 
 
+def _phase_difference_degrees(phase1_deg: float, phase2_deg: float) -> float:
+    if not (np.isfinite(phase1_deg) and np.isfinite(phase2_deg)):
+        return float("nan")
+    diff = (phase2_deg - phase1_deg + 180.0) % 360.0 - 180.0
+    return diff
+
+
+def _sample_gamma_from_stats(
+    mean: float, std: float, size: int, rng: np.random.Generator
+) -> np.ndarray:
+    if mean <= 0:
+        return np.zeros(size, dtype=float)
+    if std <= 0:
+        return np.full(size, mean, dtype=float)
+    shape = (mean / std) ** 2
+    scale = (std**2) / mean
+    return rng.gamma(shape, scale, size)
+
+
+def _sample_vonmises_from_stats(
+    mean: float, std: float, size: int, rng: np.random.Generator
+) -> np.ndarray:
+    if std <= 0:
+        return np.full(size, mean, dtype=float)
+    kappa = 1.0 / max(std**2, 1e-8)
+    return rng.vonmises(mean, kappa, size=size)
+
+
 def _save_mat(filename: str | Path, data: dict) -> None:
     """Persist MATLAB-like outputs, falling back to NPZ if SciPy is missing."""
     if _savemat is not None:
@@ -537,9 +565,10 @@ def run_simulation(
         idx_group2 = np.arange(group1_size, total_agents)
 
         scatter_artists = None
+        fig_motion = None
         if show_point_motion:
-            fig = plt.figure(1)
-            ax = fig.gca()
+            fig_motion = plt.figure(1)
+            ax = fig_motion.gca()
             ax.set_aspect("equal", adjustable="box")
             window_bounds = 1.1 * hive_bounds
             ax.set_xlim(window_bounds[0], window_bounds[1])
@@ -570,22 +599,36 @@ def run_simulation(
                 ]
             )
 
-            group1_speeds = np.maximum(
-                group1_cfg.min_fwd_speed,
-                cfg.env.speed_scale * group1_cfg.speed_fwd_std * rng.standard_normal(group1_size)
-                + cfg.env.speed_scale * group1_cfg.speed_fwd_mu,
+            group1_gamma = _sample_gamma_from_stats(
+                cfg.env.speed_scale * group1_cfg.speed_fwd_mu,
+                cfg.env.speed_scale * group1_cfg.speed_fwd_std,
+                group1_size,
+                rng,
             )
-            group2_speeds = np.maximum(
-                group2_cfg.min_fwd_speed,
-                cfg.env.speed_scale * group2_cfg.speed_fwd_std * rng.standard_normal(group2_size)
-                + cfg.env.speed_scale * group2_cfg.speed_fwd_mu,
+            group2_gamma = _sample_gamma_from_stats(
+                cfg.env.speed_scale * group2_cfg.speed_fwd_mu,
+                cfg.env.speed_scale * group2_cfg.speed_fwd_std,
+                group2_size,
+                rng,
             )
+            group1_speeds = np.maximum(group1_cfg.min_fwd_speed, group1_gamma)
+            group2_speeds = np.maximum(group2_cfg.min_fwd_speed, group2_gamma)
             speeds = np.concatenate([group1_speeds, group2_speeds]) + external_vector
             if not abl.disable_speed_transfer:
                 speeds += speed_transfers
 
-            group1_turn = group1_cfg.speed_trn_std * rng.standard_normal(group1_size) + group1_cfg.speed_trn_mu
-            group2_turn = group2_cfg.speed_trn_std * rng.standard_normal(group2_size) + group2_cfg.speed_trn_mu
+            group1_turn = _sample_vonmises_from_stats(
+                group1_cfg.speed_trn_mu,
+                group1_cfg.speed_trn_std,
+                group1_size,
+                rng,
+            )
+            group2_turn = _sample_vonmises_from_stats(
+                group2_cfg.speed_trn_mu,
+                group2_cfg.speed_trn_std,
+                group2_size,
+                rng,
+            )
             speeds_turn = np.concatenate([group1_turn, group2_turn])
 
             velocities = speeds[:, None] * np.column_stack(
@@ -620,13 +663,18 @@ def run_simulation(
                     agents[above, axis] = upper
                     agents[above, 2] = np.arctan2(-agents[above, 1], -agents[above, 0])
 
-            if not abl.disable_speed_transfer:
-                diff = agents[:, None, :2] - agents[None, :, :2]
-                distances = np.linalg.norm(diff, axis=2)
-                np.fill_diagonal(distances, 2.0 * interaction_threshold)
-                interactions = distances < interaction_threshold
-                interacting_rows, interacting_cols = np.where(interactions)
+            diff = agents[:, None, :2] - agents[None, :, :2]
+            distances = np.linalg.norm(diff, axis=2)
+            np.fill_diagonal(distances, 2.0 * interaction_threshold)
+            interactions = distances < interaction_threshold
+            interacting_rows, interacting_cols = np.where(interactions)
+            interacting_indices = (
+                np.unique(np.concatenate([interacting_rows, interacting_cols]))
+                if interacting_rows.size
+                else np.empty(0, dtype=int)
+            )
 
+            if not abl.disable_speed_transfer:
                 speed_transfers *= 0.0
                 if interacting_rows.size:
                     faster = speeds[interacting_cols] - speeds[interacting_rows]
@@ -652,6 +700,8 @@ def run_simulation(
 
             if show_point_motion:
                 ax = plt.figure(1).gca()
+                interaction_points = agents[interacting_indices, :2] if interacting_indices.size else np.empty((0, 2))
+
                 if scatter_artists is None:
                     scatter_group1 = ax.scatter(
                         agents[idx_group1, 0],
@@ -665,10 +715,17 @@ def run_simulation(
                         c="green",
                         s=10,
                     )
-                    scatter_artists = (scatter_group1, scatter_group2)
+                    scatter_interactions = ax.scatter(
+                        interaction_points[:, 0] if interaction_points.size else [],
+                        interaction_points[:, 1] if interaction_points.size else [],
+                        c="red",
+                        s=20,
+                    )
+                    scatter_artists = (scatter_group1, scatter_group2, scatter_interactions)
                 else:
                     scatter_artists[0].set_offsets(agents[idx_group1, :2])
                     scatter_artists[1].set_offsets(agents[idx_group2, :2])
+                    scatter_artists[2].set_offsets(interaction_points)
                 plt.pause(0.001)
 
             if time_step % progress_step == 0 or time_step == sim_duration:
@@ -698,10 +755,9 @@ def run_simulation(
         p_value_group2 = _permutation_rhythmicity_test(
             x_values, group2_mean_time, sim_day, rhythmicity_permutations, rng
         )
-        phase_shift_steps = float((sine_fit2.x_offset - sine_fit1.x_offset) % sim_day)
-        phase_shift = _phase_to_degrees(phase_shift_steps, sim_day)
         phase1_deg = _phase_to_degrees(float(sine_fit1.x_offset), sim_day)
         phase2_deg = _phase_to_degrees(float(sine_fit2.x_offset), sim_day)
+        phase_shift = _phase_difference_degrees(phase1_deg, phase2_deg)
         summaries.append(
             SimulationSummary(
                 density_factor=density_factor,
@@ -763,9 +819,12 @@ def run_simulation(
                 },
             )
 
+        fig_time = None
+        fig_phase = None
+
         if show_point_motion or save_outputs:
-            plt.figure(2)
-            ax2 = plt.gca()
+            fig_time = plt.figure(2)
+            ax2 = fig_time.gca()
             ax2.clear()
             ax2.plot(
                 np.tile(x_values, (group1_size, 1)).T,
@@ -788,12 +847,33 @@ def run_simulation(
             ax2.set_ylabel("Speed")
             ax2.legend()
 
-            plt.figure(3)
-            ax3 = plt.gca()
+            fig_phase = plt.figure(3)
+            ax3 = fig_phase.gca()
             ax3.clear()
             im = ax3.imshow(phase_vs_location, origin="lower")
             plt.colorbar(im, ax=ax3)
             ax3.set_title(f"Phase vs Location (density {density_factor:.1f})")
+
+        if save_outputs:
+            cfg.output.output_dir.mkdir(parents=True, exist_ok=True)
+            if fig_time is not None:
+                fig_time.savefig(
+                    cfg.output.output_dir / f"time_series_density_{density_factor:.1f}.png",
+                    dpi=150,
+                    bbox_inches="tight",
+                )
+            if fig_phase is not None:
+                fig_phase.savefig(
+                    cfg.output.output_dir / f"phase_map_density_{density_factor:.1f}.png",
+                    dpi=150,
+                    bbox_inches="tight",
+                )
+            if fig_motion is not None:
+                fig_motion.savefig(
+                    cfg.output.output_dir / f"motion_density_{density_factor:.1f}.png",
+                    dpi=150,
+                    bbox_inches="tight",
+                )
 
     return summaries
 
@@ -1073,7 +1153,8 @@ def sketch_agents_3D(
 
 
 if __name__ == "__main__":
-    #run_simulation()
-    results = run_single_factor_ablation_suite(density_factor=3.0)
-    export_ablation_results(results, "ablation_results.csv") 
-    plot_ablation_results(results) 
+    run_simulation(density_factors=[1.0], show_point_motion=True, save_outputs=True)
+    
+    #results = run_single_factor_ablation_suite(density_factor=3.0)
+    #export_ablation_results(results, "ablation_results.csv") 
+    #plot_ablation_results(results) 
