@@ -21,6 +21,8 @@ import math
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
+import csv
+import sys
 from typing import Iterable, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
@@ -38,6 +40,8 @@ __all__ = [
     "SimulationConfig",
     "SimulationParameters",
     "SimulationSummary",
+    "export_ablation_results",
+    "plot_ablation_results",
     "draw_positions_from_gaussian",
     "draw_velocities",
     "fit_sine",
@@ -121,6 +125,8 @@ class SimulationSummary:
     amplitude_group1: float
     amplitude_group2: float
     phase_shift_g2_minus_g1: float
+    phase_group1: float
+    phase_group2: float
     rhythmicity_p_value_group1: float
     rhythmicity_p_value_group2: float
     sine_fit_group1: SineFit
@@ -226,6 +232,24 @@ def _bin_statistics(
         mean_grid = sum_grid / count_grid
 
     return mean_grid, count_grid
+
+
+def _print_progress(current: int, total: int, prefix: str = "") -> None:
+    bar_len = 30
+    filled = int(bar_len * current / total)
+    bar = "#" * filled + "-" * (bar_len - filled)
+    percent = 100 * current / total
+    sys.stdout.write(f"\r{prefix} [{bar}] {percent:5.1f}%")
+    sys.stdout.flush()
+    if current >= total:
+        sys.stdout.write("\n")
+
+
+def _phase_to_degrees(phase_steps: float, period: float) -> float:
+    if not np.isfinite(phase_steps):
+        return float("nan")
+    normalized = (phase_steps % period) / period
+    return normalized * 360.0
 
 
 def _save_mat(filename: str | Path, data: dict) -> None:
@@ -523,6 +547,9 @@ def run_simulation(
 
         interaction_threshold = math.sqrt(cfg.env.speed_scale) * cfg.env.interaction_threshold_factor
 
+        progress_prefix = f"Sim density {density_factor:.1f}"
+        progress_step = max(1, sim_duration // 100)
+
         for t in range(sim_duration):
             time_step = t + 1
 
@@ -644,6 +671,9 @@ def run_simulation(
                     scatter_artists[1].set_offsets(agents[idx_group2, :2])
                 plt.pause(0.001)
 
+            if time_step % progress_step == 0 or time_step == sim_duration:
+                _print_progress(time_step, sim_duration, prefix=progress_prefix)
+
         group1_mean_time = speeds_history[idx_group1].mean(axis=0)
         group2_mean_time = speeds_history[idx_group2].mean(axis=0)
         group1_speed_mu = float(np.nanmean(group1_mean_time))
@@ -668,17 +698,37 @@ def run_simulation(
         p_value_group2 = _permutation_rhythmicity_test(
             x_values, group2_mean_time, sim_day, rhythmicity_permutations, rng
         )
-        phase_shift = float((sine_fit2.x_offset - sine_fit1.x_offset) % sim_day)
+        phase_shift_steps = float((sine_fit2.x_offset - sine_fit1.x_offset) % sim_day)
+        phase_shift = _phase_to_degrees(phase_shift_steps, sim_day)
+        phase1_deg = _phase_to_degrees(float(sine_fit1.x_offset), sim_day)
+        phase2_deg = _phase_to_degrees(float(sine_fit2.x_offset), sim_day)
         summaries.append(
             SimulationSummary(
                 density_factor=density_factor,
                 amplitude_group1=sine_fit1.y_scale,
                 amplitude_group2=sine_fit2.y_scale,
                 phase_shift_g2_minus_g1=phase_shift,
+                phase_group1=phase1_deg,
+                phase_group2=phase2_deg,
                 rhythmicity_p_value_group1=p_value_group1,
                 rhythmicity_p_value_group2=p_value_group2,
                 sine_fit_group1=sine_fit1,
                 sine_fit_group2=sine_fit2,
+            )
+        )
+
+        print(
+            "Summary density {density:.1f}: amp1={amp1:.3f}, amp2={amp2:.3f}, "
+            "phase1={phase1:.1f}°, phase2={phase2:.1f}°, phase_shift={phase:.1f}°, "
+            "p1={p1:.3g}, p2={p2:.3g}".format(
+                density=density_factor,
+                amp1=sine_fit1.y_scale,
+                amp2=sine_fit2.y_scale,
+                phase1=phase1_deg,
+                phase2=phase2_deg,
+                phase=phase_shift,
+                p1=p_value_group1 if np.isfinite(p_value_group1) else float("nan"),
+                p2=p_value_group2 if np.isfinite(p_value_group2) else float("nan"),
             )
         )
 
@@ -822,6 +872,83 @@ def run_single_factor_ablation_suite(
     )
 
 
+def export_ablation_results(results: dict[str, SimulationSummary], path: str | Path) -> None:
+    """Write ablation summaries to CSV for downstream analysis."""
+    fieldnames = [
+        "label",
+        "density_factor",
+        "amplitude_group1",
+        "amplitude_group2",
+        "phase_group1",
+        "phase_group2",
+        "phase_shift_g2_minus_g1",
+        "rhythmicity_p_value_group1",
+        "rhythmicity_p_value_group2",
+    ]
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        writer.writeheader()
+        for label, summary in results.items():
+            writer.writerow(
+                {
+                    "label": label,
+                    "density_factor": summary.density_factor,
+                    "amplitude_group1": summary.amplitude_group1,
+                    "amplitude_group2": summary.amplitude_group2,
+                    "phase_group1": summary.phase_group1,
+                    "phase_group2": summary.phase_group2,
+                    "phase_shift_g2_minus_g1": summary.phase_shift_g2_minus_g1,
+                    "rhythmicity_p_value_group1": summary.rhythmicity_p_value_group1,
+                    "rhythmicity_p_value_group2": summary.rhythmicity_p_value_group2,
+                }
+            )
+
+
+def plot_ablation_results(results: dict[str, SimulationSummary]) -> None:
+    """Visualize amplitudes, phase shifts, and p-values across ablations."""
+    labels = list(results.keys())
+    amps1 = [results[label].amplitude_group1 for label in labels]
+    amps2 = [results[label].amplitude_group2 for label in labels]
+    phases = [results[label].phase_shift_g2_minus_g1 for label in labels]
+    pvals1 = [results[label].rhythmicity_p_value_group1 for label in labels]
+    pvals2 = [results[label].rhythmicity_p_value_group2 for label in labels]
+
+    phases_g1 = [results[label].phase_group1 for label in labels]
+    phases_g2 = [results[label].phase_group2 for label in labels]
+
+    fig, axes = plt.subplots(4, 1, figsize=(10, 14), sharex=True)
+
+    axes[0].plot(labels, amps1, marker="o", label="Group 1 amplitude")
+    axes[0].plot(labels, amps2, marker="o", label="Group 2 amplitude")
+    axes[0].set_ylabel("Speed amplitude")
+    axes[0].legend()
+    axes[0].set_title("Sine amplitudes across ablations")
+
+    axes[1].plot(labels, phases_g1, marker="o", label="Group 1 phase")
+    axes[1].plot(labels, phases_g2, marker="o", label="Group 2 phase")
+    axes[1].set_ylabel("Phase (degrees)")
+    axes[1].set_title("Absolute phase offsets (0°-360°)")
+    axes[1].legend()
+
+    axes[2].plot(labels, phases, marker="o", color="tab:orange")
+    axes[2].set_ylabel("Phase shift (degrees)")
+    axes[2].set_title("Phase shift (Group2 - Group1, degrees)")
+
+    axes[3].semilogy(labels, pvals1, marker="o", label="Group 1 p-value")
+    axes[3].semilogy(labels, pvals2, marker="o", label="Group 2 p-value")
+    axes[3].axhline(0.05, color="red", linestyle="--", linewidth=1)
+    axes[3].set_ylabel("Permutation p-value")
+    axes[3].set_xlabel("Ablation")
+    axes[3].legend()
+    axes[3].set_title("Rhythmicity significance")
+
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+    plt.show()
+
+
 def sketch_agents_2D(
     N: int = 100,
     steps: int = 1000,
@@ -946,4 +1073,7 @@ def sketch_agents_3D(
 
 
 if __name__ == "__main__":
-    run_simulation()
+    #run_simulation()
+    results = run_single_factor_ablation_suite(density_factor=3.0)
+    export_ablation_results(results, "ablation_results.csv") 
+    plot_ablation_results(results) 
