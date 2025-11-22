@@ -18,12 +18,12 @@ simulation loop, while the helper functions expose the standalone utilities.
 from __future__ import annotations
 
 import math
+import csv
+import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-import csv
-import sys
-from typing import Iterable, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -70,9 +70,9 @@ class EnvironmentParameters:
     comb_size_y: float = 205.0
     bins_x: int = 45
     bins_y: int = 30
-    speed_scale: float = 50.0
+    speed_scale: float = 30.0
     homing_pull: float = 0.1
-    speed_transfer_scale: float = 1.0
+    speed_transfer_scale: float = 2.0
     interaction_threshold_factor: float = 0.2
 
     @property
@@ -91,7 +91,7 @@ class EnvironmentParameters:
 @dataclass
 class SimulationParameters:
     day_duration: int = 400
-    sim_duration: int = 800
+    sim_duration: int = 1200
 
 
 @dataclass
@@ -139,8 +139,8 @@ def default_simulation_config() -> SimulationConfig:
     group1 = GroupParameters(
         mu=np.array([-175.0, -100.0]),
         cov=env.speed_scale * np.eye(2),
-        speed_fwd_mu=0.05,
-        speed_fwd_std=0.02,
+        speed_fwd_mu=0.02,
+        speed_fwd_std=0.01,
         min_fwd_speed=-0.05,
         speed_trn_mu=0.0,
         speed_trn_std=0.5,
@@ -472,6 +472,7 @@ def run_simulation(
     save_outputs: bool = True,
     rhythmicity_permutations: int = 200,
     rng: Optional[np.random.Generator] = None,
+    history_callback: Optional[Callable[[float, Dict[str, Any]], None]] = None,
 ) -> list[SimulationSummary]:
     """
     Execute the full colony simulation for the requested density factors.
@@ -495,6 +496,11 @@ def run_simulation(
         Set to 0 to skip the statistical check.
     rng:
         Optional NumPy Generator for deterministic sampling.
+    history_callback:
+        Optional callable receiving (density_factor, history_dict). When
+        provided, per-step arrays such as speeds, positions, and the applied
+        speed-transfer boosts are passed to the callback so custom
+        visualisations can be generated without relying solely on saved files.
 
     Returns
     -------
@@ -509,7 +515,7 @@ def run_simulation(
     summaries: list[SimulationSummary] = []
 
     for density_factor in density_factors:
-        print(f"density factor: {density_factor:.1f}")
+        print(f"density factor: {density_factor:.3f}")
 
         group1_cfg = _copy_group_params(cfg.group1)
         group2_cfg = _copy_group_params(cfg.group2)
@@ -554,12 +560,17 @@ def run_simulation(
 
         sim_day = cfg.sim.day_duration
         sim_duration = cfg.sim.sim_duration
+        capture_history = history_callback is not None
 
         speeds_history = np.full((total_agents, sim_duration), np.nan, dtype=float)
+        speed_transfer_history = (
+            np.full((total_agents, sim_duration), np.nan, dtype=float) if capture_history else None
+        )
         cov_history = np.full((2, sim_duration), np.nan, dtype=float)
         speeds_bin = np.full((bins_y, bins_x, sim_duration), np.nan, dtype=float)
         speeds_bin_counts = np.zeros((bins_y, bins_x, sim_duration), dtype=float)
         positions_history = np.full((total_agents, sim_duration, 2), np.nan, dtype=float)
+        interaction_counts = np.zeros(sim_duration, dtype=int) if capture_history else None
 
         idx_group1 = np.arange(group1_size)
         idx_group2 = np.arange(group1_size, total_agents)
@@ -576,7 +587,7 @@ def run_simulation(
 
         interaction_threshold = math.sqrt(cfg.env.speed_scale) * cfg.env.interaction_threshold_factor
 
-        progress_prefix = f"Sim density {density_factor:.1f}"
+        progress_prefix = f"Sim density {density_factor:.3f}"
         progress_step = max(1, sim_duration // 100)
 
         for t in range(sim_duration):
@@ -616,6 +627,8 @@ def run_simulation(
             speeds = np.concatenate([group1_speeds, group2_speeds]) + external_vector
             if not abl.disable_speed_transfer:
                 speeds += speed_transfers
+            if speed_transfer_history is not None:
+                speed_transfer_history[:, t] = speed_transfers
 
             group1_turn = _sample_vonmises_from_stats(
                 group1_cfg.speed_trn_mu,
@@ -673,6 +686,8 @@ def run_simulation(
                 if interacting_rows.size
                 else np.empty(0, dtype=int)
             )
+            if interaction_counts is not None:
+                interaction_counts[t] = int(interacting_rows.size)
 
             if not abl.disable_speed_transfer:
                 speed_transfers *= 0.0
@@ -738,10 +753,9 @@ def run_simulation(
         group2_speed_mu = float(np.nanmean(group2_mean_time))
         group2_speed_sigma = float(np.nanmean(np.nanstd(speeds_history[idx_group2], axis=0)))
 
-        cov_history[:, -1] = [
-            float(np.trace(np.cov(agents[idx_group1, :2].T))),
-            float(np.trace(np.cov(agents[idx_group2, :2].T))),
-        ]
+        cov1 = float(np.trace(np.cov(agents[idx_group1, :2].T))) if group1_size > 1 else float("nan")
+        cov2 = float(np.trace(np.cov(agents[idx_group2, :2].T))) if group2_size > 1 else float("nan")
+        cov_history[:, -1] = [cov1, cov2]
 
         print(f"group 1 (blue): speeds mu={group1_speed_mu:.4f}, std={group1_speed_sigma:.4f}")
         print(f"group 2 (green): speeds mu={group2_speed_mu:.4f}, std={group2_speed_sigma:.4f}")
@@ -789,13 +803,20 @@ def run_simulation(
         )
 
         phase_vs_location = np.full((bins_y, bins_x), np.nan, dtype=float)
+        phase_vs_location_relative = np.full((bins_y, bins_x), np.nan, dtype=float)
         number_of_samples_vs_location = np.sum(speeds_bin_counts, axis=2)
 
         for row in range(bins_y):
             for col in range(bins_x):
                 series = speeds_bin[row, col, :]
                 sine = fit_sine(x_values, series, sim_day)
-                phase_vs_location[row, col] = sine.x_offset if not math.isnan(sine.y_offset) else np.nan
+                if math.isnan(sine.y_offset):
+                    phase_vs_location[row, col] = np.nan
+                    phase_vs_location_relative[row, col] = np.nan
+                else:
+                    phase_abs = _phase_to_degrees(float(sine.x_offset), sim_day)
+                    phase_vs_location[row, col] = phase_abs
+                    phase_vs_location_relative[row, col] = _phase_difference_degrees(phase1_deg, phase_abs)
 
         if save_outputs and cfg.output.save_mat:
             cfg.output.output_dir.mkdir(parents=True, exist_ok=True)
@@ -804,7 +825,8 @@ def run_simulation(
             _save_mat(
                 out_filename_phase,
                 {
-                    "phase_vs_location": phase_vs_location,
+                    "phase_vs_location_absolute": phase_vs_location,
+                    "phase_vs_location_relative": phase_vs_location_relative,
                     "number_of_sample_vs_location": number_of_samples_vs_location,
                 },
             )
@@ -842,18 +864,24 @@ def run_simulation(
             ax2.plot(x_values, group1_mean_time, "y", label="Group 1 mean")
             ax2.plot(x_values, sine_fit1(x_values), label="Group 1 sine fit")
             ax2.plot(x_values, sine_fit2(x_values), label="Group 2 sine fit")
-        ax2.set_title(f"Speed Evolution (density {density_factor:.1f})")
-        ax2.set_xlabel("Time step")
-        ax2.set_ylabel("Speed")
-        ax2.legend()
+            ax2.set_title(f"Speed Evolution (density {density_factor:.1f})")
+            ax2.set_xlabel("Time step")
+            ax2.set_ylabel("Speed")
+            ax2.legend()
 
-        fig_phase = plt.figure(3)
-        ax3 = fig_phase.gca()
-        ax3.clear()
-        phase_display = np.mod(phase_vs_location, 360.0)
-        im = ax3.imshow(phase_display, origin="lower", cmap="twilight", vmin=0, vmax=360)
-        plt.colorbar(im, ax=ax3, label="Phase (deg)")
-        ax3.set_title(f"Phase vs Location (density {density_factor:.1f})")
+            fig_phase = plt.figure(3)
+            ax3 = fig_phase.gca()
+            ax3.clear()
+            phase_display = phase_vs_location_relative
+            im = ax3.imshow(
+                phase_display,
+                origin="lower",
+                cmap="twilight_shifted",
+                vmin=-180,
+                vmax=180,
+            )
+            plt.colorbar(im, ax=ax3, label="Phase difference (deg)")
+            ax3.set_title(f"Phase difference vs Location (density {density_factor:.1f})")
 
         if save_outputs:
             cfg.output.output_dir.mkdir(parents=True, exist_ok=True)
@@ -875,6 +903,23 @@ def run_simulation(
                     dpi=150,
                     bbox_inches="tight",
                 )
+
+        if history_callback is not None:
+            history_callback(
+                density_factor,
+                {
+                    "speeds": speeds_history.copy(),
+                    "positions": positions_history.copy(),
+                    "speed_transfers": speed_transfer_history.copy()
+                    if speed_transfer_history is not None
+                    else None,
+                    "interaction_counts": interaction_counts.copy() if interaction_counts is not None else None,
+                    "group1_indices": idx_group1.copy(),
+                    "group2_indices": idx_group2.copy(),
+                    "sim_duration": sim_duration,
+                    "day_duration": sim_day,
+                },
+            )
 
     return summaries
 
@@ -1154,8 +1199,8 @@ def sketch_agents_3D(
 
 
 if __name__ == "__main__":
-    run_simulation(density_factors=[1.0], show_point_motion=True, save_outputs=True)
+    #run_simulation(density_factors=[1.0], show_point_motion=True, save_outputs=True)
     
-    #results = run_single_factor_ablation_suite(density_factor=3.0)
-    #export_ablation_results(results, "ablation_results.csv") 
-    #plot_ablation_results(results) 
+    results = run_single_factor_ablation_suite(density_factor=1.0)
+    export_ablation_results(results, "ablation_results.csv") 
+    plot_ablation_results(results) 
