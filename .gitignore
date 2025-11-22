@@ -164,3 +164,7 @@ path_settings.py
 pyproject.toml
 path_settings.py
 path_settings.py
+*.csv
+*.mat 
+*.png
+*mp4
