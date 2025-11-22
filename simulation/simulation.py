@@ -2,13 +2,9 @@
 Python translation of the accompanying MATLAB scripts for the SpeedTransfer project.
 
 This module consolidates functionality from the following MATLAB sources:
-    - draw_positions_from_gaussian.m
-    - draw_velocities.m
     - fit_sine.m
     - mgd.m
     - run_simulation.m
-    - sketch_agents_2D.m
-    - sketch_agents_3D.m
 
 It mirrors MATLAB behaviour while remaining idiomatic Python. All heavy numerical
 work is delegated to NumPy/SciPy, and plotting is handled via Matplotlib just like
@@ -42,14 +38,10 @@ __all__ = [
     "SimulationSummary",
     "export_ablation_results",
     "plot_ablation_results",
-    "draw_positions_from_gaussian",
-    "draw_velocities",
     "fit_sine",
     "mgd",
     "run_simulation",
     "run_ablation_study",
-    "sketch_agents_2D",
-    "sketch_agents_3D",
 ]
 
 
@@ -73,7 +65,7 @@ class EnvironmentParameters:
     speed_scale: float = 50.0
     homing_pull: float = 0.1
     speed_transfer_scale: float = 1.0
-    speed_transfer_decay: float = 0.7
+    speed_transfer_decay: float = 0.8
     interaction_threshold_factor: float = 0.2
 
     @property
@@ -292,41 +284,6 @@ def _save_mat(filename: str | Path, data: dict) -> None:
             f"SciPy is unavailable; saved data to {alt_path.name} instead of {filename}.",
             RuntimeWarning,
         )
-
-
-def draw_positions_from_gaussian(
-    mean: Sequence[float],
-    covariance: Sequence[Sequence[float]],
-    rng: Optional[np.random.Generator] = None,
-) -> np.ndarray:
-    """
-    Sample a single 2D position from a specified multivariate Gaussian.
-
-    This mirrors the small MATLAB helper and is primarily used during agent
-    initialization. The function name is kept for compatibility, although the
-    implementation simply forwards to NumPy's multivariate_normal.
-    """
-    rng = _ensure_rng(rng)
-    mean_arr = np.asarray(mean, dtype=float)
-    cov_arr = np.asarray(covariance, dtype=float)
-    return rng.multivariate_normal(mean_arr, cov_arr)
-
-
-def draw_velocities(
-    N: int,
-    v_fwd_mu: float,
-    v_fwd_std: float,
-    v_trn_mu: float,
-    v_trn_std: float,
-    rng: Optional[np.random.Generator] = None,
-) -> np.ndarray:
-    """
-    Placeholder translation of the empty MATLAB function.
-
-    The MATLAB source never implemented this routine, so we intentionally raise
-    to signal callers that a bespoke velocity sampler still needs definition.
-    """
-    raise NotImplementedError("draw_velocities was not implemented in MATLAB.")
 
 
 @dataclass
@@ -1113,130 +1070,6 @@ def plot_ablation_results(results: dict[str, SimulationSummary]) -> None:
     plt.xticks(rotation=30, ha="right")
     plt.tight_layout()
     plt.show()
-
-
-def sketch_agents_2D(
-    N: int = 100,
-    steps: int = 1000,
-    rng: Optional[np.random.Generator] = None,
-) -> None:
-    """
-    Minimal 2D random walk visualisation used during the MATLAB prototyping stage.
-    Agents are initialised from a Gaussian cloud and move according to noisy
-    forward/turn speeds. Intended for qualitative inspection only.
-    """
-    rng = _ensure_rng(rng)
-    mu = [0.0, 0.0]
-    cov = np.eye(2)
-
-    positions = mgd(N, 2, mu, cov, rng=rng)
-    orientations = rng.uniform(0.0, 2.0 * np.pi, size=(N, 1))
-    agents = np.hstack([positions, orientations])
-
-    speed_xy_avg = 1.0
-    speed_xy_std = 1.0
-    speed_trn_avg = 0.0
-    speed_trn_std = 0.5
-
-    plt.figure()
-    for _ in range(steps):
-        speeds = speed_xy_std * rng.standard_normal(N) + speed_xy_avg
-        velocities = speeds[:, None] * np.column_stack(
-            [np.sin(agents[:, 2]), np.cos(agents[:, 2])]
-        )
-        agents[:, :2] += velocities
-
-        turns = speed_trn_std * rng.standard_normal(N) + speed_trn_avg
-        agents[:, 2] += turns
-
-        plt.cla()
-        plt.scatter(agents[:, 0], agents[:, 1], s=10)
-        plt.axis("equal")
-        plt.pause(0.001)
-
-    plt.scatter(agents[:, 0], agents[:, 1], s=10)
-    plt.show()
-
-
-def sketch_agents_3D(
-    N1: int = 100,
-    N2: int = 100,
-    steps: int = 1000,
-    rng: Optional[np.random.Generator] = None,
-) -> None:
-    """
-    Two-group variant of the sketching tool that visualises interactions and
-    homing behaviour. The implementation mirrors the MATLAB script closely so
-    any observed patterns can be compared across languages.
-    """
-    rng = _ensure_rng(rng)
-    mu1 = [-1.0, 0.0]
-    mu2 = [1.0, 0.0]
-    cov = np.eye(2)
-
-    agents_group1 = np.hstack(
-        [mgd(N1, 2, mu1, cov, rng=rng), rng.uniform(0.0, 2.0 * np.pi, size=(N1, 1))]
-    )
-    agents_group2 = np.hstack(
-        [mgd(N2, 2, mu2, cov, rng=rng), rng.uniform(0.0, 2.0 * np.pi, size=(N2, 1))]
-    )
-    agents = np.vstack([agents_group1, agents_group2])
-
-    homing_pull = 0.005
-    speed_xy_avg = 1.0
-    speed_xy_std = 1.0
-    speed_trn_avg = 0.0
-    speed_trn_std = 0.5
-    threshold_dist = 0.15
-    window_size = 4.0
-
-    N = N1 + N2
-    idx_blue = np.arange(N1)
-    idx_green = np.arange(N1, N)
-    speed_transfers = np.zeros(N, dtype=float)
-
-    plt.figure()
-    for _ in range(steps):
-        speeds = np.maximum(
-            0.0,
-            speed_xy_std * rng.standard_normal(N) + speed_xy_avg,
-        ) + speed_transfers
-
-        velocities = speeds[:, None] * np.column_stack(
-            [np.sin(agents[:, 2]), np.cos(agents[:, 2])]
-        )
-
-        home1 = _normalize_rows(np.tile(mu1, (N1, 1)) - agents[idx_blue, :2])
-        home2 = _normalize_rows(np.tile(mu2, (N2, 1)) - agents[idx_green, :2])
-        velocities[idx_blue] += homing_pull * (np.linalg.norm(home1) ** 3) * (home1 - velocities[idx_blue])
-        velocities[idx_green] += homing_pull * (np.linalg.norm(home2) ** 3) * (home2 - velocities[idx_green])
-
-        agents[:, :2] += velocities
-
-        turns = speed_trn_std * rng.standard_normal(N) + speed_trn_avg
-        agents[:, 2] += turns
-
-        diff = agents[:, None, :2] - agents[None, :, :2]
-        distances = np.linalg.norm(diff, axis=2)
-        np.fill_diagonal(distances, threshold_dist * 2.0)
-        interactions = distances < threshold_dist
-        rows, cols = np.where(interactions)
-
-        speed_transfers *= 0.5
-        if rows.size:
-            gain = np.where(speeds[rows] < speeds[cols], speeds[cols] - speeds[rows], 0.0)
-            np.add.at(speed_transfers, rows, gain)
-
-        plt.cla()
-        plt.scatter(agents[idx_blue, 0], agents[idx_blue, 1], s=10, c="blue")
-        plt.scatter(agents[idx_green, 0], agents[idx_green, 1], s=10, c="green")
-        plt.scatter(agents[rows, 0], agents[rows, 1], s=10, c="red")
-        plt.xlim(-window_size, window_size)
-        plt.ylim(-window_size, window_size)
-        plt.pause(0.001)
-
-    plt.show()
-
 
 if __name__ == "__main__":
     #run_simulation(density_factors=[1.0], show_point_motion=True, save_outputs=True)
