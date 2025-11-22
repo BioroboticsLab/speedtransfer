@@ -70,9 +70,10 @@ class EnvironmentParameters:
     comb_size_y: float = 205.0
     bins_x: int = 45
     bins_y: int = 30
-    speed_scale: float = 30.0
+    speed_scale: float = 50.0
     homing_pull: float = 0.1
-    speed_transfer_scale: float = 2.0
+    speed_transfer_scale: float = 1.0
+    speed_transfer_decay: float = 0.7
     interaction_threshold_factor: float = 0.2
 
     @property
@@ -139,8 +140,8 @@ def default_simulation_config() -> SimulationConfig:
     group1 = GroupParameters(
         mu=np.array([-175.0, -100.0]),
         cov=env.speed_scale * np.eye(2),
-        speed_fwd_mu=0.02,
-        speed_fwd_std=0.01,
+        speed_fwd_mu=0.05,
+        speed_fwd_std=0.02,
         min_fwd_speed=-0.05,
         speed_trn_mu=0.0,
         speed_trn_std=0.5,
@@ -387,6 +388,41 @@ def fit_sine(
         y_scale=y_scale,
         period=period_length,
     )
+
+
+def compute_sine_summary(
+    x_values: np.ndarray,
+    group1_mean_time: np.ndarray,
+    group2_mean_time: np.ndarray,
+    sim_day: float,
+    rhythmicity_permutations: int,
+    rng: np.random.Generator,
+    valid_mask: Optional[np.ndarray] = None,
+) -> dict[str, object]:
+    if valid_mask is not None:
+        x_values = x_values[valid_mask]
+        group1_mean_time = group1_mean_time[valid_mask]
+        group2_mean_time = group2_mean_time[valid_mask]
+
+    sine_fit1 = fit_sine(x_values, group1_mean_time, sim_day)
+    sine_fit2 = fit_sine(x_values, group2_mean_time, sim_day)
+    p_value_group1 = _permutation_rhythmicity_test(x_values, group1_mean_time, sim_day, rhythmicity_permutations, rng)
+    p_value_group2 = _permutation_rhythmicity_test(x_values, group2_mean_time, sim_day, rhythmicity_permutations, rng)
+    phase1_deg = _phase_to_degrees(float(sine_fit1.x_offset), sim_day)
+    phase2_deg = _phase_to_degrees(float(sine_fit2.x_offset), sim_day)
+    phase_shift = _phase_difference_degrees(phase1_deg, phase2_deg)
+
+    return {
+        "sine_fit_group1": sine_fit1,
+        "sine_fit_group2": sine_fit2,
+        "phase_group1": phase1_deg,
+        "phase_group2": phase2_deg,
+        "phase_shift": phase_shift,
+        "p_value_group1": p_value_group1,
+        "p_value_group2": p_value_group2,
+        "amplitude_group1": sine_fit1.y_scale,
+        "amplitude_group2": sine_fit2.y_scale,
+    }
 
 
 def _permutation_rhythmicity_test(
@@ -690,7 +726,8 @@ def run_simulation(
                 interaction_counts[t] = int(interacting_rows.size)
 
             if not abl.disable_speed_transfer:
-                speed_transfers *= 0.0
+                # Exponential decay of previous transfers before applying new boosts
+                speed_transfers *= cfg.env.speed_transfer_decay
                 if interacting_rows.size:
                     faster = speeds[interacting_cols] - speeds[interacting_rows]
                     faster = np.where(speeds[interacting_rows] < speeds[interacting_cols], faster, 0.0)
@@ -761,29 +798,29 @@ def run_simulation(
         print(f"group 2 (green): speeds mu={group2_speed_mu:.4f}, std={group2_speed_sigma:.4f}")
 
         x_values = np.arange(1, sim_duration + 1, dtype=float)
-        sine_fit1 = fit_sine(x_values, group1_mean_time, sim_day)
-        sine_fit2 = fit_sine(x_values, group2_mean_time, sim_day)
-        p_value_group1 = _permutation_rhythmicity_test(
-            x_values, group1_mean_time, sim_day, rhythmicity_permutations, rng
+        valid_mask = x_values >= (0.25 * sim_day)
+        sine_summary = compute_sine_summary(
+            x_values, group1_mean_time, group2_mean_time, sim_day, rhythmicity_permutations, rng, valid_mask=valid_mask
         )
-        p_value_group2 = _permutation_rhythmicity_test(
-            x_values, group2_mean_time, sim_day, rhythmicity_permutations, rng
-        )
-        phase1_deg = _phase_to_degrees(float(sine_fit1.x_offset), sim_day)
-        phase2_deg = _phase_to_degrees(float(sine_fit2.x_offset), sim_day)
-        phase_shift = _phase_difference_degrees(phase1_deg, phase2_deg)
+        sine_fit1 = sine_summary["sine_fit_group1"]
+        sine_fit2 = sine_summary["sine_fit_group2"]
+        p_value_group1 = sine_summary["p_value_group1"]
+        p_value_group2 = sine_summary["p_value_group2"]
+        phase1_deg = sine_summary["phase_group1"]
+        phase2_deg = sine_summary["phase_group2"]
+        phase_shift = sine_summary["phase_shift"]
         summaries.append(
             SimulationSummary(
                 density_factor=density_factor,
-                amplitude_group1=sine_fit1.y_scale,
-                amplitude_group2=sine_fit2.y_scale,
-                phase_shift_g2_minus_g1=phase_shift,
-                phase_group1=phase1_deg,
-                phase_group2=phase2_deg,
-                rhythmicity_p_value_group1=p_value_group1,
-                rhythmicity_p_value_group2=p_value_group2,
-                sine_fit_group1=sine_fit1,
-                sine_fit_group2=sine_fit2,
+                amplitude_group1=sine_summary["amplitude_group1"],
+                amplitude_group2=sine_summary["amplitude_group2"],
+                phase_shift_g2_minus_g1=sine_summary["phase_shift"],
+                phase_group1=sine_summary["phase_group1"],
+                phase_group2=sine_summary["phase_group2"],
+                rhythmicity_p_value_group1=sine_summary["p_value_group1"],
+                rhythmicity_p_value_group2=sine_summary["p_value_group2"],
+                sine_fit_group1=sine_summary["sine_fit_group1"],
+                sine_fit_group2=sine_summary["sine_fit_group2"],
             )
         )
 
@@ -918,6 +955,9 @@ def run_simulation(
                     "group2_indices": idx_group2.copy(),
                     "sim_duration": sim_duration,
                     "day_duration": sim_day,
+                    "sine_summary": sine_summary,
+                    "group_mean_speeds": {"group1": group1_mean_time.copy(), "group2": group2_mean_time.copy()},
+                    "sine_valid_mask": valid_mask.copy(),
                 },
             )
 
