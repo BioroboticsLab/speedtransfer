@@ -101,6 +101,7 @@ class AblationConfig:
     disable_external_driver: bool = False
     homogenize_turning_noise: bool = False
     homogenize_initial_positions: bool = False
+    speed_transfer_decay: Optional[float] = None
 
 
 @dataclass
@@ -550,6 +551,9 @@ def run_simulation(
         agents = np.vstack([agents_group1, agents_group2])
 
         speed_transfers = np.zeros(total_agents, dtype=float)
+        speed_transfer_decay = (
+            cfg.env.speed_transfer_decay if abl.speed_transfer_decay is None else abl.speed_transfer_decay
+        )
 
         sim_day = cfg.sim.day_duration
         sim_duration = cfg.sim.sim_duration
@@ -684,7 +688,7 @@ def run_simulation(
 
             if not abl.disable_speed_transfer:
                 # Exponential decay of previous transfers before applying new boosts
-                speed_transfers *= cfg.env.speed_transfer_decay
+                speed_transfers *= speed_transfer_decay
                 if interacting_rows.size:
                     faster = speeds[interacting_cols] - speeds[interacting_rows]
                     faster = np.where(speeds[interacting_rows] < speeds[interacting_cols], faster, 0.0)
@@ -982,6 +986,7 @@ def run_single_factor_ablation_suite(
         "no_walls": AblationConfig(disable_walls=True),
         "no_homing": AblationConfig(disable_homing=True),
         "no_speed_transfer": AblationConfig(disable_speed_transfer=True),
+        "decay_0": AblationConfig(speed_transfer_decay=0.0),
         "no_external_driver": AblationConfig(disable_external_driver=True),
         "homogenize_turn": AblationConfig(homogenize_turning_noise=True),
         "homogenize_init": AblationConfig(homogenize_initial_positions=True),
