@@ -64,7 +64,7 @@ for density_factor = [3, 7, 10]
     
     % simulation parameters
     prm.simulation.day_duration = 400;
-    prm.simulation.sim_duration = 2000;
+    prm.simulation.sim_duration = 800;
     
     % visualization parameters
     prm.visualization.show_point_motion     = true;
@@ -205,18 +205,28 @@ for density_factor = [3, 7, 10]
     
         %% visualize
         if prm.visualization.show_point_motion
+
             figure(prm.visualization.figs(1))
+            hold on 
+            if t==1
+                prm.s1 = scatter(agents(prm.idx_group1, 1), agents(prm.idx_group1, 2), 'blue', 'filled');
+                prm.s2 = scatter(agents(prm.idx_group2, 1), agents(prm.idx_group2, 2), 'green', 'filled');
+            end
+
+            
             % plot group 1 (blue)
-            plot(agents(prm.idx_group1, 1), agents(prm.idx_group1, 2), '.')
-            hold on
+            prm.s1.XData = agents(prm.idx_group1, 1);
+            prm.s1.YData = agents(prm.idx_group1, 2);
+
             % plot group 2 (green)
-            plot(agents(prm.idx_group2, 1), agents(prm.idx_group2, 2), '.g')
+            prm.s2.XData = agents(prm.idx_group2, 1);
+            prm.s2.YData = agents(prm.idx_group2, 2);
             
             % plot those that interact
-            plot(agents(i,1), agents(i,2), 'r.')
+            %scatter(agents(i,1), agents(i,2), 'red', 'filled')
             
             % visualize center of mass
-            viscircles([mean(agents(prm.idx_group1, 1:2)); mean(agents(prm.idx_group2, 1:2))], [prm.visualization.center_of_mass_size; prm.visualization.center_of_mass_size]);
+            %viscircles([mean(agents(prm.idx_group1, 1:2)); mean(agents(prm.idx_group2, 1:2))], [prm.visualization.center_of_mass_size; prm.visualization.center_of_mass_size]);
             
             
             hold off
