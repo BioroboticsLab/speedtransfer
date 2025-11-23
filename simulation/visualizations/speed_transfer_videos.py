@@ -77,23 +77,33 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=(1, 25, 50),
         help="Group sizes (per group) to simulate; defaults to 1, 25, 50.",
     )
+    parser.add_argument(
+        "--speed-transfer-decay",
+        type=float,
+        default=None,
+        help="Override speed transfer decay (default: use model default).",
+    )
     return parser.parse_args(argv)
 
 
-def _video_config(sim_duration: int) -> object:
+def _video_config(sim_duration: int, speed_transfer_decay: float | None) -> object:
     cfg = default_simulation_config()
     cfg.sim = SimulationParameters(day_duration=200, sim_duration=sim_duration)
+    if speed_transfer_decay is not None:
+        cfg.env.speed_transfer_decay = float(speed_transfer_decay)
     cfg.output = OutputOptions(output_dir=OUTPUT_DIR)
     return cfg
 
 
-def _simulate_with_history(density_factor: float, sim_duration: int, seed: int) -> dict:
+def _simulate_with_history(
+    density_factor: float, sim_duration: int, seed: int, speed_transfer_decay: float | None
+) -> dict:
     history: dict[float, dict] = {}
 
     def _capture(density: float, payload: dict) -> None:
         history[density] = payload
 
-    cfg = _video_config(sim_duration)
+    cfg = _video_config(sim_duration, speed_transfer_decay)
     rng = np.random.default_rng(seed)
     run_simulation(
         density_factors=(density_factor,),
@@ -107,6 +117,7 @@ def _simulate_with_history(density_factor: float, sim_duration: int, seed: int) 
     )
     hist = history[density_factor]
     hist["hive_bounds"] = cfg.env.hive_bounds
+    hist["speed_transfer_decay"] = cfg.env.speed_transfer_decay
     t = np.arange(1, sim_duration + 1, dtype=float)
     driver_amp = cfg.env.speed_scale * cfg.env.speed_transfer_scale * cfg.group1.speed_fwd_mu * 0.5
     hist["driver_wave"] = driver_amp * (np.sin(2.0 * np.pi * t / cfg.sim.day_duration) + 1.0)
@@ -447,7 +458,12 @@ def main() -> None:
 
         if g1_n == 1:
             while True:
-                history = _simulate_with_history(density_factor=density, sim_duration=duration_by_group[g1_n], seed=seed)
+                history = _simulate_with_history(
+                    density_factor=density,
+                    sim_duration=duration_by_group[g1_n],
+                    seed=seed,
+                    speed_transfer_decay=args.speed_transfer_decay,
+                )
                 attempts += 1
                 if not args.require_pair_transfer or _has_speed_transfer(history) or attempts >= args.max_attempts:
                     break
@@ -455,7 +471,12 @@ def main() -> None:
                 seed_by_group[g1_n] = seed
             render_two_agent_motion_and_speed(history, OUTPUT_DIR / "speed_transfer_mean_1_per_group.mp4")
         else:
-            history = _simulate_with_history(density_factor=density, sim_duration=duration_by_group[g1_n], seed=seed)
+            history = _simulate_with_history(
+                density_factor=density,
+                sim_duration=duration_by_group[g1_n],
+                seed=seed,
+                speed_transfer_decay=args.speed_transfer_decay,
+            )
             title = f"Speed transfer (n={g1_n} per group, density={density:.3f})"
             render_motion_and_mean_speed(history, OUTPUT_DIR / f"speed_transfer_mean_{g1_n}_per_group.mp4", title)
 
