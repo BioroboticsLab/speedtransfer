@@ -33,7 +33,7 @@ def _build_config() -> object:
     cfg.sim = SimulationParameters(day_duration=120, sim_duration=240)
     cfg.env.bins_x = 30
     cfg.env.bins_y = 20
-    cfg.output = OutputOptions(save_mat=True, output_dir=OUTPUT_DIR)
+    cfg.output = OutputOptions(output_dir=OUTPUT_DIR)
     return cfg
 
 

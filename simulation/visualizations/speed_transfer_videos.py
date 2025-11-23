@@ -83,7 +83,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def _video_config(sim_duration: int) -> object:
     cfg = default_simulation_config()
     cfg.sim = SimulationParameters(day_duration=200, sim_duration=sim_duration)
-    cfg.output = OutputOptions(save_mat=False, output_dir=OUTPUT_DIR)
+    cfg.output = OutputOptions(output_dir=OUTPUT_DIR)
     return cfg
 
 

@@ -16,18 +16,12 @@ from __future__ import annotations
 import math
 import csv
 import sys
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-try:
-    from scipy.io import savemat as _savemat
-except ImportError:  # pragma: no cover - SciPy may be unavailable
-    _savemat = None
 
 __all__ = [
     "AblationConfig",
@@ -89,7 +83,6 @@ class SimulationParameters:
 
 @dataclass
 class OutputOptions:
-    save_mat: bool = True
     output_dir: Path = Path(".")
 
 
@@ -272,19 +265,6 @@ def _sample_vonmises_from_stats(
         return np.full(size, mean, dtype=float)
     kappa = 1.0 / max(std**2, 1e-8)
     return rng.vonmises(mean, kappa, size=size)
-
-
-def _save_mat(filename: str | Path, data: dict) -> None:
-    """Persist MATLAB-like outputs, falling back to NPZ if SciPy is missing."""
-    if _savemat is not None:
-        _savemat(str(filename), data)
-    else:  # pragma: no cover - only triggered without SciPy
-        alt_path = Path(filename).with_suffix(".npz")
-        np.savez(alt_path, **data)
-        warnings.warn(
-            f"SciPy is unavailable; saved data to {alt_path.name} instead of {filename}.",
-            RuntimeWarning,
-        )
 
 
 @dataclass
@@ -484,7 +464,8 @@ def run_simulation(
     show_point_motion:
         Keep matplotlib scatter plots updated. Disable for headless sweeps.
     save_outputs:
-        Persist `.mat` files compatible with the MATLAB analysis pipeline.
+        Legacy flag retained for compatibility. `.mat` export has been removed;
+        when True, additional summary plots are generated alongside point motion.
     rhythmicity_permutations:
         Number of permutations used for the sine-amplitude significance test.
         Set to 0 to skip the statistical check.
@@ -815,29 +796,6 @@ def run_simulation(
                     phase_abs = _phase_to_degrees(float(sine.x_offset), sim_day)
                     phase_vs_location[row, col] = phase_abs
                     phase_vs_location_relative[row, col] = _phase_difference_degrees(phase1_deg, phase_abs)
-
-        if save_outputs and cfg.output.save_mat:
-            cfg.output.output_dir.mkdir(parents=True, exist_ok=True)
-            out_filename_phase = cfg.output.output_dir / f"phase_vs_location_density_{density_factor:.1f}.mat"
-            out_filename_out = cfg.output.output_dir / f"OUT_density_{density_factor:.1f}.mat"
-            _save_mat(
-                out_filename_phase,
-                {
-                    "phase_vs_location_absolute": phase_vs_location,
-                    "phase_vs_location_relative": phase_vs_location_relative,
-                    "number_of_sample_vs_location": number_of_samples_vs_location,
-                },
-            )
-            _save_mat(
-                out_filename_out,
-                {
-                    "speeds": speeds_history,
-                    "cov": cov_history,
-                    "speeds_bin": speeds_bin,
-                    "speeds_bin_n": speeds_bin_counts,
-                    "positions": positions_history,
-                },
-            )
 
         fig_time = None
         fig_phase = None

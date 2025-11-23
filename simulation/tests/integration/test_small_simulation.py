@@ -27,7 +27,7 @@ def _make_small_config() -> tuple:
     cfg.env.bins_x = 18
     cfg.env.bins_y = 12
     cfg.sim = SimulationParameters(day_duration=80, sim_duration=160)
-    cfg.output = OutputOptions(save_mat=False, output_dir=Path("visualizations/output"))
+    cfg.output = OutputOptions(output_dir=Path("visualizations/output"))
     return cfg
 
 
