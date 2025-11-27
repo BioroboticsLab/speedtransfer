@@ -83,12 +83,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Override speed transfer decay (default: use model default).",
     )
+    parser.add_argument(
+        "--day-duration",
+        type=int,
+        default=None,
+        help="Number of steps per simulated day (default: use model default).",
+    )
     return parser.parse_args(argv)
 
 
-def _video_config(sim_duration: int, speed_transfer_decay: float | None) -> object:
+def _video_config(sim_duration: int, speed_transfer_decay: float | None, day_duration: int | None) -> object:
     cfg = default_simulation_config()
-    cfg.sim = SimulationParameters(day_duration=200, sim_duration=sim_duration)
+    cfg.sim = SimulationParameters(day_duration=day_duration or 200, sim_duration=sim_duration)
     if speed_transfer_decay is not None:
         cfg.env.speed_transfer_decay = float(speed_transfer_decay)
     cfg.output = OutputOptions(output_dir=OUTPUT_DIR)
@@ -96,14 +102,14 @@ def _video_config(sim_duration: int, speed_transfer_decay: float | None) -> obje
 
 
 def _simulate_with_history(
-    density_factor: float, sim_duration: int, seed: int, speed_transfer_decay: float | None
+    density_factor: float, sim_duration: int, seed: int, speed_transfer_decay: float | None, day_duration: int | None
 ) -> dict:
     history: dict[float, dict] = {}
 
     def _capture(density: float, payload: dict) -> None:
         history[density] = payload
 
-    cfg = _video_config(sim_duration, speed_transfer_decay)
+    cfg = _video_config(sim_duration, speed_transfer_decay, day_duration)
     rng = np.random.default_rng(seed)
     run_simulation(
         density_factors=(density_factor,),
@@ -155,16 +161,16 @@ def _save_animation(anim: animation.FuncAnimation, path: Path, fps: int = 20) ->
     plt.close(anim._fig)
 
 
-def _draw_transfer_background(ax: plt.Axes, time_axis: np.ndarray, counts: np.ndarray):
-    if counts is None or not np.any(counts):
+def _draw_transfer_background(ax: plt.Axes, time_axis: np.ndarray, values: np.ndarray):
+    if values is None or not np.any(values):
         return None
-    vmax = float(np.max(counts))
+    vmax = float(np.max(values))
     norm = matplotlib.colors.Normalize(vmin=0.0, vmax=vmax)
     cmap = plt.get_cmap("Oranges")
-    for step, count in enumerate(counts):
-        if count <= 0:
+    for step, val in enumerate(values):
+        if val <= 0:
             continue
-        color = cmap(norm(count))
+        color = cmap(norm(val))
         ax.axvspan(time_axis[step] - 0.5, time_axis[step] + 0.5, color=color, alpha=0.25, linewidth=0)
     sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
@@ -226,10 +232,8 @@ def render_two_agent_motion_and_speed(history: dict, output_path: Path) -> None:
     g1_speed = speeds[idx_g1[0]]
     g2_speed = speeds[idx_g2[0]]
 
-    transfer_counts = (
-        np.count_nonzero(transfers[idx_g2] > TRANSFER_EPS, axis=0) if transfers is not None else np.zeros_like(time_axis)
-    )
-    transfer_mask = transfer_counts > 0
+    transfer_sum = np.sum(transfers[idx_g2], axis=0) if transfers is not None else np.zeros_like(time_axis)
+    transfer_mask = transfer_sum > 0
 
     xlim, ylim = _arena_limits(positions, hive_bounds)
 
@@ -244,10 +248,10 @@ def render_two_agent_motion_and_speed(history: dict, output_path: Path) -> None:
 
     line_g1, = ax_speed.plot([], [], color="tab:blue", label="Group 1 speed")
     line_g2, = ax_speed.plot([], [], color="tab:green", label="Group 2 speed")
-    bg = _draw_transfer_background(ax_speed, time_axis, transfer_counts)
+    bg = _draw_transfer_background(ax_speed, time_axis, transfer_sum)
     if bg is not None:
         cbar = plt.colorbar(bg, ax=ax_speed, pad=0.01)
-        cbar.set_label("Speed transfers (agents)")
+        cbar.set_label("Speed transfer sum")
 
     ax_pos.set_xlim(xlim)
     ax_pos.set_ylim(ylim)
@@ -309,10 +313,8 @@ def render_motion_and_mean_speed(history: dict, output_path: Path, title: str) -
 
     g1_mean, g1_low, g1_high = _stats(g1)
     g2_mean, g2_low, g2_high = _stats(g2)
-    transfer_counts = (
-        np.count_nonzero(transfers[idx_g2] > TRANSFER_EPS, axis=0) if transfers is not None else np.zeros_like(time_axis)
-    )
-    transfer_mask = transfer_counts > 0
+    transfer_sum = np.sum(transfers[idx_g2], axis=0) if transfers is not None else np.zeros_like(time_axis)
+    transfer_mask = transfer_sum > 0
     day_duration = float(history.get("day_duration", speeds.shape[1]))
 
     sine_summary = history.get("sine_summary")
@@ -349,10 +351,10 @@ def render_motion_and_mean_speed(history: dict, output_path: Path, title: str) -
     vline_driver = ax_speed.axvline(color="0.3", linestyle=":", alpha=0.7, linewidth=1.2)
     for v in (vline_g1, vline_g2, vline_driver):
         v.set_visible(False)
-    bg = _draw_transfer_background(ax_speed, time_axis, transfer_counts)
+    bg = _draw_transfer_background(ax_speed, time_axis, transfer_sum)
     if bg is not None:
         cbar = plt.colorbar(bg, ax=ax_speed, pad=0.01)
-        cbar.set_label("Speed transfers (agents)")
+        cbar.set_label("Speed transfer sum")
     bands: list[matplotlib.collections.PolyCollection] = []
     ax_speed.set_xlim(time_axis[0], time_axis[-1])
     ax_speed.set_ylim(y_min, y_max)
@@ -463,6 +465,7 @@ def main() -> None:
                     sim_duration=duration_by_group[g1_n],
                     seed=seed,
                     speed_transfer_decay=args.speed_transfer_decay,
+                    day_duration=args.day_duration,
                 )
                 attempts += 1
                 if not args.require_pair_transfer or _has_speed_transfer(history) or attempts >= args.max_attempts:
@@ -476,6 +479,7 @@ def main() -> None:
                 sim_duration=duration_by_group[g1_n],
                 seed=seed,
                 speed_transfer_decay=args.speed_transfer_decay,
+                day_duration=args.day_duration,
             )
             title = f"Speed transfer (n={g1_n} per group, density={density:.3f})"
             render_motion_and_mean_speed(history, OUTPUT_DIR / f"speed_transfer_mean_{g1_n}_per_group.mp4", title)
