@@ -265,6 +265,23 @@ def _save_plots(
         fig.savefig(output_prefix.with_name(f"{output_prefix.name}_day{int(day_duration)}_lines.png"), dpi=150, bbox_inches="tight")
         plt.close(fig)
 
+        fig, ax = plt.subplots(figsize=(8, 4))
+        for density in density_factors:
+            line_subset = subset[subset["density_factor"] == density].sort_values("speed_transfer_decay")
+            ax.plot(
+                line_subset["speed_transfer_decay"],
+                line_subset["phase_shift_mean"],
+                marker="o",
+                label=f"density {density:.2f} (agents≈{int(500*density)})",
+            )
+        ax.set_xlabel("speed_transfer_decay")
+        ax.set_ylabel("Phase shift (deg)")
+        ax.set_title(f"Phase shift vs decay — day={day_duration}, sim={sim_duration}")
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(output_prefix.with_name(f"{output_prefix.name}_day{int(day_duration)}_phase_lines.png"), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run density × speed-transfer-decay sweep with caching.")
