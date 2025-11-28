@@ -234,7 +234,7 @@ def _save_plots(
         axes[0].set_title(f"Amplitude (Group 2) — day={day_duration}, sim={sim_duration}")
         fig.colorbar(im0, ax=axes[0], label="speed amplitude")
 
-        im1 = axes[1].imshow(pivot_phase.values, origin="lower", aspect="auto", cmap="twilight")
+        im1 = axes[1].imshow(pivot_phase.values, origin="lower", aspect="auto", cmap="magma")
         axes[1].set_xticks(range(len(pivot_phase.columns)))
         axes[1].set_xticklabels([f"{c:.2f}" for c in pivot_phase.columns])
         axes[1].set_yticks(range(len(pivot_phase.index)))
