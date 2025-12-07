@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import statsmodels.stats.api as sms
 import statsmodels.formula.api as smf
-import path_settings
+import sys
+from pathlib import Path
 
 def prepare_df(path):
     df = pd.read_csv(path)
@@ -10,28 +11,26 @@ def prepare_df(path):
     df["phase"] = ((-24 * df["phase"] / (2 * np.pi)) + 12) % 24
     return df
 
-def run_regressions(df, year, side):
+def run_regressions(df, year, side, variable):
     print(f"\n--- Results for {year} side {side}---")
-    # Logistische Regression: is_circadian ~ age
-    print(df.columns)
-    #logit_model = smf.logit("age_focal_median ~ entrance_dist_focal_median", data=df).fit(disp=0)
-    print("Logistische Regression (age_focal_median ~ entrance_dist_focal_median):")
-    #print(logit_model.summary())
-    #print("P-Values:", logit_model.pvalues)
+    print(f"Weighted Linear Regression (entrance_dist_focal_median ~ {variable}):")
 
-    # WLS: phase ~ age
-    group_vars = df.groupby('age_focal_median')['entrance_dist_focal_median'].var()
-    df['variance'] = df['age_focal_median'].map(group_vars)
+    # WLS: entrance_dist_focal_median ~ age_focal_median
+    group_vars = df.groupby(variable)['entrance_dist_focal_median'].var()
+    df['variance'] = df[variable].map(group_vars)
+    # avoid dividing through 0
+    df['variance'].replace(0, 1e-8, inplace=True)
+    df['variance'].fillna(df['variance'].median(), inplace=True)
     df['inv_var_weight'] = 1 / df['variance']
 
-    group_counts = df['age_focal_median'].value_counts(normalize=True)
-    df['sampling_weight'] = df['age_focal_median'].map(lambda g: 1 / group_counts[g])
+    group_counts = df[variable].value_counts(normalize=True)
+    df['sampling_weight'] = df[variable].map(lambda g: 1 / group_counts[g])
     df['sampling_weight'] /= df['sampling_weight'].mean()
 
     df['combined_weight'] = df['inv_var_weight'] * df['sampling_weight']
 
-    wls_model = smf.wls("entrance_dist_focal_median ~ age_focal_median", data=df, weights=df["combined_weight"]).fit()
-    print("\nWLS regression (phase ~ age):")
+    wls_model = smf.wls(f"entrance_dist_focal_median ~ {variable}", data=df, weights=df["combined_weight"]).fit()
+    print(f"\nWLS regression (entrance_dist ~ {variable}):")
     print(wls_model.summary())
     print("P-values:", wls_model.pvalues)
 
@@ -40,14 +39,19 @@ def run_regressions(df, year, side):
     print(dict(zip(labels, bp_test)))
 
 if __name__ == "__main__":
+    sys.path.append(str(Path("correlation_of_dist_entrance_tests.py").resolve().parents[0]))
+    import path_settings
+
     dist_exit_df_2016 = pd.read_csv(path_settings.DIST_EXIT_SIDE_0_DF_PATH_2016)
     dist_exit_df_2016 = dist_exit_df_2016.dropna()
     dist_exit_df_2019 = pd.read_csv(path_settings.DIST_EXIT_SIDE_0_DF_PATH_2019)
     dist_exit_df_2019 = dist_exit_df_2019.dropna()
-    #interaction_df_2016_0 = prepare_df(path_settings.INTERACTION_SIDE_0_DF_PATH_2016)
-    #interaction_df_2019_0 = prepare_df(path_settings.INTERACTION_SIDE_0_DF_PATH_2016)
-    cosinor_df_2019 = prepare_df(path_settings.COSINOR_DF_PATH_2019)
 
-    run_regressions(dist_exit_df_2016, 2016, 0)
-    run_regressions(dist_exit_df_2019, 2019, 0)
-    #run_regressions(interaction_df_2016_0, 2019, 0)
+    run_regressions(dist_exit_df_2016, 2016, 0, 'age_focal_median')
+    run_regressions(dist_exit_df_2019, 2019, 0, 'age_focal_median')
+    run_regressions(dist_exit_df_2016, 2016, 0, 'r_squared_focal_median')
+    run_regressions(dist_exit_df_2019, 2019, 0, 'r_squared_focal_median')
+    run_regressions(dist_exit_df_2016, 2016, 0, 'phase_focal_median')
+    run_regressions(dist_exit_df_2019, 2019, 0, 'phase_focal_median')
+    run_regressions(dist_exit_df_2016, 2016, 0, 'phase_focal_std')
+    run_regressions(dist_exit_df_2019, 2019, 0, 'phase_focal_std')

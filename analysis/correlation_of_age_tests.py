@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import statsmodels.stats.api as sms
 import statsmodels.formula.api as smf
-import path_settings
+import sys
+from pathlib import Path
 
 def prepare_df(path):
     df = pd.read_csv(path)
@@ -39,6 +40,9 @@ def run_regressions(df, year):
     print(dict(zip(labels, bp_test)))
 
 if __name__ == "__main__":
+    sys.path.append(str(Path("correlation_of_age_tests.py").resolve().parents[0]))
+    import path_settings
+
     cosinor_df_2016 = prepare_df(path_settings.COSINOR_DF_PATH_2016)
     cosinor_df_2019 = prepare_df(path_settings.COSINOR_DF_PATH_2019)
 
