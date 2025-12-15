@@ -179,8 +179,16 @@ if __name__ == "__main__":
         default=1,
         help="Number of worker processes for parallel execution (2019 only)."
     )
+    parser.add_argument(
+        "--data-path",
+        type=str,
+        help="Override data root (sets SPEEDTRANSFER_DATA_PATH for path_settings).",
+    )
 
     args = parser.parse_args()
+    if args.data_path:
+        os.environ["SPEEDTRANSFER_DATA_PATH"] = args.data_path
+
     year = args.year
 
     if int(year) == 2016:
