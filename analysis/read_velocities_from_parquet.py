@@ -111,7 +111,7 @@ def save_bee_velocities(in_dir, out_dir, dt_from, dt_to, year="2019"):
         timestamp = os.path.splitext(os.path.basename(file))[0]
 
         for bee_id in trajectory_df.bee_id.unique():
-            trajectory_df_subset = trajectory_df.query("bee_id == @bee_id & cam_id == 0")
+            trajectory_df_subset = trajectory_df.query("bee_id == @bee_id")
             filepath = os.path.join(out_dir, f"{bee_id}_{timestamp}.pickle")
             if not os.path.exists(filepath):
                 df = get_bee_velocity_df(trajectory_df_subset, year=year)
