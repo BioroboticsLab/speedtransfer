@@ -14,6 +14,7 @@ import glob
 import pandas as pd
 import scipy
 import re
+from concurrent.futures import ProcessPoolExecutor
 
 parser = argparse.ArgumentParser()
 
@@ -25,6 +26,12 @@ parser.add_argument(
 )
 parser.add_argument(
     "--trajectory_dir", type=str, help="In which directory the trajectory files are located."
+)
+parser.add_argument(
+    "--num-processes",
+    type=int,
+    default=4,
+    help="Number of worker processes to process trajectory files in parallel.",
 )
 args = parser.parse_args()
 
@@ -50,18 +57,31 @@ if not os.path.exists(cache_directory):
 
 
 def get_bee_velocity_df(trajectory_df, max_mm_per_second=None, year="2019", bee_id_confidence=0.1):
-    trajectory_df = trajectory_df.query("bee_id_confidence > %d" % bee_id_confidence)[["timestamp", "x_hive", "y_hive"]]
-    trajectory_df["time_passed"] = trajectory_df["timestamp"].view("int64") / 1e9
-    trajectory_df.set_index("timestamp", inplace=True)
-    trajectory_df = trajectory_df - trajectory_df.shift(1)
-    trajectory_df["velocity"] = trajectory_df["velocity"] = np.sqrt(trajectory_df["x_hive"] ** 2 + trajectory_df["y_hive"] ** 2)
+    trajectory_df = trajectory_df.query("bee_id_confidence > %d" % bee_id_confidence)[
+        ["timestamp", "x_hive", "y_hive", "cam_id"]
+    ]
+
+    # time delta in seconds
+    trajectory_df["time_passed"] = trajectory_df["timestamp"].diff().dt.total_seconds()
+
+    # spatial deltas
+    trajectory_df["dx"] = trajectory_df["x_hive"].diff()
+    trajectory_df["dy"] = trajectory_df["y_hive"].diff()
+
+    # velocity in mm/s
+    trajectory_df["velocity"] = np.sqrt(trajectory_df["dx"] ** 2 + trajectory_df["dy"] ** 2)
     if year == "2016":
         trajectory_df["time_passed"] = np.round(trajectory_df["time_passed"] * float(3)) / 3.0
-        trajectory_df["time_passed"][trajectory_df["time_passed"] == 0.0] = 1.0 / 3
+        trajectory_df.loc[trajectory_df["time_passed"] == 0.0, "time_passed"] = 1.0 / 3
     trajectory_df["velocity"] = trajectory_df["velocity"] / trajectory_df["time_passed"]
+
+    # set velocity to NaN when camera switches
+    cam_switch = trajectory_df["cam_id"].diff().fillna(0) != 0
+    trajectory_df.loc[cam_switch, "velocity"] = np.nan
+
     if max_mm_per_second is not None:
         trajectory_df["velocity"].where(trajectory_df["velocity"] > max_mm_per_second, np.nan, inplace=True)
-    trajectory_df.reset_index(inplace=True)
+
     trajectory_df.rename(columns={"timestamp": "datetime"}, inplace=True)
     trajectory_df["datetime"] = pd.to_datetime(trajectory_df["datetime"], utc=True)
     return trajectory_df[["datetime", "velocity", "time_passed"]]
@@ -87,7 +107,19 @@ def parse_filename_timerange(filename: str):
     except ValueError:
         return None, None
 
-def save_bee_velocities(in_dir, out_dir, dt_from, dt_to, year="2019"):
+def _process_file(task):
+    file, out_dir, year = task
+    trajectory_df = pd.read_parquet(file)
+    timestamp = os.path.splitext(os.path.basename(file))[0]
+
+    for bee_id, bee_df in trajectory_df.groupby("bee_id"):
+        filepath = os.path.join(out_dir, f"{bee_id}_{timestamp}.parquet")
+        if not os.path.exists(filepath):
+            df = get_bee_velocity_df(bee_df, year=year)
+            df.to_parquet(filepath, index=False)
+
+
+def save_bee_velocities(in_dir, out_dir, dt_from, dt_to, year="2019", num_processes=4):
     os.makedirs(out_dir, exist_ok=True)
 
     # Convert dt_from, dt_to to datetime
@@ -105,20 +137,18 @@ def save_bee_velocities(in_dir, out_dir, dt_from, dt_to, year="2019"):
         if (start_dt <= dt_to) and (end_dt >= dt_from):
             filtered_files.append(file)
 
-    # First pass: Process each parquet file & save per bee per file
-    for file in filtered_files:
-        trajectory_df = pd.read_parquet(file)
-        timestamp = os.path.splitext(os.path.basename(file))[0]
+    tasks = [(file, out_dir, year) for file in filtered_files]
 
-        for bee_id in trajectory_df.bee_id.unique():
-            trajectory_df_subset = trajectory_df.query("bee_id == @bee_id")
-            filepath = os.path.join(out_dir, f"{bee_id}_{timestamp}.pickle")
-            if not os.path.exists(filepath):
-                df = get_bee_velocity_df(trajectory_df_subset, year=year)
-                df.to_pickle(filepath)
+    # First pass: Process each parquet file & save per bee per file (parallel by file)
+    if num_processes and num_processes > 1:
+        with ProcessPoolExecutor(max_workers=num_processes) as executor:
+            list(executor.map(_process_file, tasks))
+    else:
+        for task in tasks:
+            _process_file(task)
 
     # Second pass: Combine all frames per bee into one file (memory efficient)
-    per_bee_files = glob.glob(os.path.join(out_dir, "*_*.pickle"))
+    per_bee_files = glob.glob(os.path.join(out_dir, "*_*.parquet"))
 
     # Get unique bee IDs
     bee_ids = sorted({int(os.path.basename(f).split("_")[0]) for f in per_bee_files})
@@ -129,10 +159,10 @@ def save_bee_velocities(in_dir, out_dir, dt_from, dt_to, year="2019"):
 
         dfs = []
         for f in bee_files:
-            dfs.append(pd.read_pickle(f))
+            dfs.append(pd.read_parquet(f))
 
         # Concatenate and sort
-        combined_df = pd.concat(dfs).sort_index()
+        combined_df = pd.concat(dfs).sort_values("datetime")
 
         # Save combined frame
         combined_path = os.path.join(out_dir, f"{bee_id}.pickle")
@@ -146,8 +176,14 @@ def save_bee_velocities(in_dir, out_dir, dt_from, dt_to, year="2019"):
         del dfs, combined_df
 
 
-if year == 2019:
-    save_bee_velocities(args.trajectory_dir, cache_directory, dt_from, dt_to, year)
-
-elif year == 2016:
-    print("Not yet implemented because of not known frame ids.")
+if year in (2016, 2019):
+    save_bee_velocities(
+        args.trajectory_dir,
+        cache_directory,
+        dt_from,
+        dt_to,
+        year,
+        num_processes=args.num_processes,
+    )
+else:
+    print(f"Unsupported year: {year}")
