@@ -116,7 +116,8 @@ def _process_file(task):
         filepath = os.path.join(out_dir, f"{bee_id}_{timestamp}.parquet")
         if not os.path.exists(filepath):
             df = get_bee_velocity_df(bee_df, year=year)
-            df.to_parquet(filepath, index=False)
+            if not df.empty:
+                df.to_parquet(filepath, index=False)
 
 
 def save_bee_velocities(in_dir, out_dir, dt_from, dt_to, year="2019", num_processes=4):
@@ -159,6 +160,8 @@ def save_bee_velocities(in_dir, out_dir, dt_from, dt_to, year="2019", num_proces
 
         dfs = []
         for f in bee_files:
+            if os.path.getsize(f) == 0:
+                continue
             dfs.append(pd.read_parquet(f))
 
         # Concatenate and sort
