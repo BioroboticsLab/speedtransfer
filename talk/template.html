@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speed Transfer Figure Dossier</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Palette is lifted from the figures' own instrument — the viridis colormap —
+   so page and plots read as one system. Light is the base; dark redefines the
+   same tokens twice (media query for the unstamped default, [data-theme] for
+   an explicit choice) so all three viewer states resolve.
+   --------------------------------------------------------------------------- */
+:root {
+  --paper:      #F4F4F7;
+  --surface:    #FFFFFF;
+  --surface-2:  #EAEAF0;
+  --plate:      #FFFFFF;   /* figures are white-ground plots: kept white in both themes */
+  --ink:        #14141B;
+  --ink-2:      #3A3A48;
+  --muted:      #6B6A7B;
+  --line:       #DCDCE4;
+  --line-firm:  #C3C3CF;
+  --accent:     #16706B;
+  --accent-2:   #21918C;
+  --violet:     #440154;
+  --violet-2:   #6A3080;
+  --lime:       #6E8C0A;
+  --flag:       #9A5B00;
+  --flag-bg:    #FBF2E4;
+  --shadow:     0 1px 2px rgba(20,20,27,.06), 0 6px 20px rgba(20,20,27,.05);
+
+  --font-ui:    "Avenir Next", "Avenir", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-body:  Charter, "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-mono:  ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:     #131319;
+    --surface:   #1C1C25;
+    --surface-2: #24242F;
+    --ink:       #E9E9F1;
+    --ink-2:     #C4C4D2;
+    --muted:     #8E8DA1;
+    --line:      #30303C;
+    --line-firm: #43434F;
+    --accent:    #45CBC4;
+    --accent-2:  #35B0A9;
+    --violet:    #C7A0DA;
+    --violet-2:  #A87EC0;
+    --lime:      #B5DE2B;
+    --flag:      #E3A75A;
+    --flag-bg:   #2A2318;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.34);
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper:     #131319;
+  --surface:   #1C1C25;
+  --surface-2: #24242F;
+  --ink:       #E9E9F1;
+  --ink-2:     #C4C4D2;
+  --muted:     #8E8DA1;
+  --line:      #30303C;
+  --line-firm: #43434F;
+  --accent:    #45CBC4;
+  --accent-2:  #35B0A9;
+  --violet:    #C7A0DA;
+  --violet-2:  #A87EC0;
+  --lime:      #B5DE2B;
+  --flag:      #E3A75A;
+  --flag-bg:   #2A2318;
+  --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.34);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+h1, h2, h3, h4 { font-family: var(--font-ui); text-wrap: balance; margin: 0; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* --- shell ---------------------------------------------------------------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 48px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 40px 120px;
+}
+
+.rail {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: 40px 0 40px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.rail-title {
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rail li { display: flex; flex-direction: column; }
+.rail a {
+  display: flex;
+  gap: 9px;
+  padding: 6px 8px 6px 0;
+  color: var(--ink-2);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  padding-left: 10px;
+}
+.rail a:hover { color: var(--accent); border-left-color: var(--accent); }
+.rail a.is-active { color: var(--ink); border-left-color: var(--violet); font-weight: 600; }
+.rail .n {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--violet);
+  padding-top: 2px;
+}
+
+.main { min-width: 0; padding-top: 40px; }
+
+/* --- masthead ------------------------------------------------------------- */
+
+.masthead { padding: 24px 0 8px; border-bottom: 1px solid var(--line-firm); }
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 18px;
+}
+.masthead h1 {
+  font-size: clamp(30px, 4.2vw, 48px);
+  line-height: 1.08;
+  letter-spacing: -.02em;
+  font-weight: 600;
+  max-width: 20ch;
+}
+.standfirst {
+  max-width: 62ch;
+  margin: 20px 0 26px;
+  font-size: 19px;
+  color: var(--ink-2);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin-bottom: 34px;
+}
+.fact { background: var(--surface); padding: 13px 15px; }
+.fact dt {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.fact dd {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 21px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+.fact dd small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+
+/* --- acts ----------------------------------------------------------------- */
+
+.act { padding-top: 68px; scroll-margin-top: 24px; }
+.act-head {
+  display: flex;
+  gap: 18px;
+  align-items: baseline;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--violet);
+  margin-bottom: 8px;
+}
+.act-num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--violet);
+  padding-top: 4px;
+}
+.act-head h2 {
+  font-size: clamp(22px, 2.6vw, 30px);
+  font-weight: 600;
+  letter-spacing: -.015em;
+  flex: 1;
+}
+.act-intro { max-width: 66ch; color: var(--ink-2); margin: 14px 0 0; }
+
+/* --- plates --------------------------------------------------------------- */
+
+.plate {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  margin-top: 34px;
+  scroll-margin-top: 24px;
+}
+.plate-fig { background: var(--plate); border-bottom: 1px solid var(--line); padding: 14px; }
+.plate-fig img,
+.plate-fig video { display: block; width: 100%; height: auto; }
+.plate-fig img { cursor: zoom-in; }
+.plate-fig video { background: #fff; }
+
+.plate-body { padding: 24px 30px 30px; }
+.eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.tag {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 2px 7px;
+}
+.tag.support { color: var(--muted); border-color: var(--line-firm); }
+.plate h3 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  line-height: 1.25;
+  margin-bottom: 14px;
+  max-width: 34ch;
+}
+.plate p { max-width: 68ch; margin: 0 0 14px; }
+.plate p:last-child { margin-bottom: 0; }
+
+/* per-panel breakdown */
+.panels { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.panels li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; align-items: start; }
+.panels .p {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--surface);
+  background: var(--violet-2);
+  text-align: center;
+  line-height: 22px;
+  height: 22px;
+  margin-top: 3px;
+}
+.panels .txt { max-width: 66ch; }
+.panels .txt b { font-family: var(--font-ui); font-weight: 600; }
+.axes {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* the line you'd actually say */
+.say {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  margin-top: 24px;
+  padding: 15px 18px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+}
+.say .lbl {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.say q { font-size: 17px; quotes: "\201C" "\201D"; }
+
+/* things to check or pre-empt */
+.flag {
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: var(--flag-bg);
+  border-left: 3px solid var(--flag);
+  font-size: 15.5px;
+}
+.flag > b {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--flag);
+  margin-bottom: 5px;
+}
+.flag p { margin: 0 0 8px; max-width: 68ch; }
+.flag p:last-child { margin-bottom: 0; }
+
+/* collapsible supporting material */
+details.extra { margin-top: 26px; border-top: 1px solid var(--line); }
+details.extra > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 0 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+details.extra > summary::-webkit-details-marker { display: none; }
+details.extra > summary::before {
+  content: "+";
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1;
+  color: var(--muted);
+}
+details.extra[open] > summary::before { content: "\2013"; }
+details.extra > summary:hover { color: var(--accent-2); }
+.extra-grid { display: flex; flex-direction: column; gap: 22px; padding: 20px 0 4px; }
+.sub {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.sub img { display: block; width: 100%; height: auto; background: var(--plate); border: 1px solid var(--line); cursor: zoom-in; padding: 8px; }
+.sub .cap { font-size: 15.5px; color: var(--ink-2); max-width: 62ch; }
+.sub .cap h4 { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: var(--ink); }
+.sub .cap code { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+/* ablation table */
+.table-wrap { overflow-x: auto; margin-top: 24px; border: 1px solid var(--line); }
+table { border-collapse: collapse; width: 100%; font-family: var(--font-ui); font-size: 14px; }
+caption {
+  caption-side: top;
+  text-align: left;
+  padding: 13px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+th, td { padding: 9px 16px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 220px; }
+/* no text-transform here: it would uppercase the maths symbols (φ -> Φ, p -> P) */
+thead th { font-size: 11px; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+thead th:first-child { text-transform: uppercase; }
+tbody td { font-variant-numeric: tabular-nums; }
+tbody tr.killed td { color: var(--flag); }
+tbody tr.baseline { background: var(--surface-2); }
+tbody tr.baseline td { font-weight: 600; }
+tbody tr:last-child td { border-bottom: none; }
+
+/* --- lightbox ------------------------------------------------------------- */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+  background: rgba(10, 10, 14, .93);
+  padding: 28px 28px 20px;
+  flex-direction: column;
+  gap: 14px;
+}
+.lightbox[open] { display: flex; }
+.lightbox img {
+  flex: 1;
+  min-height: 0;
+  object-fit: contain;
+  background: #fff;
+  padding: 10px;
+  width: 100%;
+}
+.lightbox-bar {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: #E9E9F1;
+}
+.lightbox-bar .hint { font-family: var(--font-mono); font-size: 11px; color: #8E8DA1; }
+.lightbox button {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: #E9E9F1;
+  background: transparent;
+  border: 1px solid #43434F;
+  padding: 5px 13px;
+  cursor: pointer;
+}
+.lightbox button:hover { border-color: #E9E9F1; }
+
+/* --- footer --------------------------------------------------------------- */
+
+.colophon {
+  margin-top: 80px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line-firm);
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 68ch;
+}
+.colophon code { font-family: var(--font-mono); font-size: 12.5px; }
+
+/* --- responsive ----------------------------------------------------------- */
+
+@media (max-width: 1040px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 24px 80px; }
+  .rail { position: static; max-height: none; padding: 30px 0 0; border-bottom: 1px solid var(--line); }
+  .rail ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 2px; }
+  .main { padding-top: 20px; }
+  .sub { grid-template-columns: minmax(0, 1fr); }
+  .plate-body { padding: 22px 20px 26px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <nav class="rail" aria-label="Talk order">
+    <div class="rail-title">Talk order</div>
+    <ol>
+      <li><a href="#act1"><span class="n">1</span><span>How we measured it</span></a></li>
+      <li><a href="#act2"><span class="n">2</span><span>Every age class is rhythmic</span></a></li>
+      <li><a href="#act3"><span class="n">3</span><span>Bumping transfers speed</span></a></li>
+      <li><a href="#act4"><span class="n">4</span><span>Activity travels as a wave</span></a></li>
+      <li><a href="#act5"><span class="n">5</span><span>Is the model just tuned?</span></a></li>
+      <li><a href="#act6"><span class="n">6</span><span>How robust is it?</span></a></li>
+    </ol>
+  </nav>
+
+  <main class="main">
+
+    <header class="masthead">
+      <div class="kicker">Figure dossier &middot; for the talk</div>
+      <h1>Collective flow of circadian clock information in honeybee colonies</h1>
+      <p class="standfirst">
+        Every figure in the project, in the order the argument runs, with what each panel
+        shows, what its axes mean, and the sentence to say over it. Colony B is the main
+        line throughout; colony A replicates sit in the expandable blocks.
+      </p>
+      <dl class="facts">
+        <div class="fact"><dt>Colonies</dt><dd>2<small>A. m. carnica, queenright</small></dd></div>
+        <div class="fact"><dt>Recording</dt><dd>57&thinsp;/&thinsp;100<small>days, colony A / B</small></dd></div>
+        <div class="fact"><dt>Tagged bees</dt><dd>1917<small>colony A</small></dd></div>
+        <div class="fact"><dt>Tagged bees</dt><dd>3404<small>colony B</small></dd></div>
+        <div class="fact"><dt>Visible daily</dt><dd>716+<small>max 1320 / 1594</small></dd></div>
+        <div class="fact"><dt>Phase shift</dt><dd>~2&thinsp;h<small>entrance to nest core</small></dd></div>
+      </dl>
+    </header>
+
+    <!-- ================================================================ ACT 1 -->
+    <section class="act" id="act1">
+      <div class="act-head">
+        <span class="act-num">01</span>
+        <h2>How we measured it</h2>
+      </div>
+      <p class="act-intro">
+        One schematic carries the whole method: continuous tracking of every individual,
+        movement speed per bee, a cosine fitted to that speed, physical contacts detected
+        from overlap, and an agent-based model built on the same rule. If the audience
+        follows this one slide, every later figure reads itself.
+      </p>
+
+      <article class="plate" id="fig-overview">
+        <div class="plate-fig">
+          <img src="__ASSET_overview__" alt="Four-part schematic: tracked bees on comb, cosinor fit to movement speed, speed change around an interaction, and the agent-based model." data-caption="Method overview — tracking, cosinor fit, interaction, model">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Opening slide</span><span>figures/imgs/overview_figure.png</span></div>
+          <h3>From video of a whole colony to a single interaction rule</h3>
+          <p>
+            Two observation hives were filmed without interruption, 57 days for colony A and
+            100 for colony B. Every bee carried a unique tag, so identity and age are known
+            for all 1917 and 3404 individuals. The bees foraged freely through a tube to the
+            outside and were otherwise left alone.
+          </p>
+          <ul class="panels">
+            <li><span class="p">a</span><span class="txt"><b>Tracking.</b> Detected trajectories on the comb; two bees are marked with the 14&thinsp;&times;&thinsp;6&thinsp;mm rectangles used to define contact. Overlapping rectangles count as an interaction.</span></li>
+            <li><span class="p">b</span><span class="txt"><b>Cosinor fit.</b> A 24&thinsp;h cosine is fitted per bee per day to movement speed. Two numbers come out and get used everywhere after this: the peak time <i>T</i>(&phi;) and the fit quality <i>R</i>&sup2;, which stands in for how pronounced the rhythm is.<span class="axes">x: time &nbsp;&middot;&nbsp; y: movement speed [mm/s]</span></span></li>
+            <li><span class="p">c</span><span class="txt"><b>Speed change at contact.</b> For every interaction, mean speed over the 30&thinsp;s after minus the 30&thinsp;s before, for both partners. Here the slow bee (blue) gains and the fast bee (green) loses.<span class="axes">x: time relative to contact [s] &nbsp;&middot;&nbsp; y: movement speed [mm/s]</span></span></li>
+            <li><span class="p">d</span><span class="txt"><b>Agent-based model.</b> Random-walking agents in a bounded arena that hand speed to each other on contact — the minimal version of what panel c measures.</span></li>
+          </ul>
+          <div class="say">
+            <span class="lbl">Say this</span>
+            <q>We tracked every bee in the colony continuously for months, fitted a daily rhythm to each individual, measured what happens to both partners each time two bees touch, and then asked whether that one contact rule is enough to explain the colony.</q>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ================================================================ ACT 2 -->
+    <section class="act" id="act2">
+      <div class="act-head">
+        <span class="act-num">02</span>
+        <h2>Every age class is rhythmic, and the nest is a phase gradient</h2>
+      </div>
+      <p class="act-intro">
+        This is where the received picture gets amended. Nurses are usually described as
+        arrhythmic; here they are rhythmic, just weakly — and rhythm properties turn out to
+        map onto <em>where a bee is</em> rather than onto a task label.
+      </p>
+
+      <article class="plate" id="fig-1">
+        <div class="plate-fig">
+          <img src="__ASSET_fig1__" alt="Figure 1, colony B: speed traces per age group, cosinor fits for two individuals, share of rhythmic bees by age, median age mapped on the comb, and rhythm parameters against distance to entrance." data-caption="Figure 1 (colony B) — circadian rhythms across bee age and nest space">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Main figure</span><span>speed_transfer_paper/figure_1_colony_B.png</span></div>
+          <h3>Rhythm strength, synchrony and peak time all track distance from the entrance</h3>
+          <p>
+            Bees were split into 5-day age cohorts. Significant daily rhythms show up in
+            <em>every</em> cohort: 29&thinsp;% (colony A) and 64&thinsp;% (colony B) of
+            1–4&thinsp;day-old bees, rising above 89&thinsp;% and 93&thinsp;% past 35 days.
+            Mapped onto the comb, age falls off continuously with distance from the entrance,
+            and peak activity time slides with it — from 12:20 near the entrance to 14:12 deep
+            inside.
+          </p>
+          <ul class="panels">
+            <li><span class="p">a</span><span class="txt"><b>Speed by age group, three days.</b> All groups are faster by day than by night; the day–night gap widens with age. Purple is young, yellow is old. Hourly bins, Gaussian-smoothed (&sigma;&thinsp;=&thinsp;4); bands are 95&thinsp;% CIs of the unsmoothed speeds.<span class="axes">x: date &middot; y: movement speed [mm/s] &middot; grey columns = night</span></span></li>
+            <li><span class="p">b</span><span class="txt"><b>Two individuals, three days each.</b> A 1-day-old nurse (purple) and a 30-day-old forager (green). Both fits are significant, but the nurse's is shallower and noisier — the visual case for "weakly rhythmic, not arrhythmic". Missing points on the nurse's day 0 are just the introduction time.<span class="axes">x: date &middot; y: movement speed [mm/s] &middot; dashed = cosinor fit</span></span></li>
+            <li><span class="p">c</span><span class="txt"><b>Share of rhythmic bees by age.</b> Monotonic increase with age — and no cohort near zero.<span class="axes">x: proportion [%] &middot; y: age cohort [days]</span></span></li>
+            <li><span class="p">d</span><span class="txt"><b>Median age over the comb.</b> Old bees hug the entrance (red arrow, lower left); the youngest sit in the brood area at the centre.<span class="axes">comb view in mm; contours = median age [d]</span></span></li>
+            <li><span class="p">e</span><span class="txt"><b>Rhythm parameters vs. distance to entrance.</b> The load-bearing panel. Four min–max normalised traces — peak phase, synchronicity (SD of phase), median <i>R</i>&sup2;, median age — with their raw scales on the four right-hand axes. Colour saturation encodes how many bees contributed. Further from the entrance means later peak, weaker rhythm, poorer synchrony.<span class="axes">x: distance to entrance [mm] &middot; y: normalised parameter value</span></span></li>
+          </ul>
+          <div class="say">
+            <span class="lbl">Say this</span>
+            <q>There is no clean nurse-versus-forager split. There is a gradient: the deeper into the nest a bee sits, the weaker her rhythm, the less synchronised she is with her nestmates, and the later in the day she peaks — by up to two hours.</q>
+          </div>
+          <div class="flag">
+            <b>Pre-empt this</b>
+            <p>
+              The distance relationship in <b>e</b> is not strictly monotonic. The youngest bees
+              sit around 300&thinsp;mm out (the brood area) and age rises again beyond that. Say
+              it before someone points at the tail: what keeps going in one direction past the
+              brood area is the <em>peak time</em>, which is the claim being made.
+            </p>
+          </div>
+
+          <details class="extra">
+            <summary>Colony A replicates — Figure S1</summary>
+            <div class="extra-grid">
+              <div class="sub">
+                <img src="__ASSET_fig_s1a__" alt="Figure S1a: mean movement speed per age group for colony A." data-caption="Figure S1a (colony A) — speed by age group">
+                <div class="cap"><h4>S1a &middot; Speed by age group</h4>Same day–night pattern and same widening with age as Fig. 1a. <code>figure_S1a.png</code></div>
+              </div>
+              <div class="sub">
+                <img src="__ASSET_fig_s1c__" alt="Figure S1c: share of rhythmic bees per age cohort for colony A." data-caption="Figure S1c (colony A) — share of rhythmic bees by age">
+                <div class="cap"><h4>S1c &middot; Share of rhythmic bees</h4>The 29&thinsp;% figure for the youngest cohort comes from here; the rise with age matches colony B. <code>figure_S1c.png</code></div>
+              </div>
+              <div class="sub">
+                <img src="__ASSET_fig_s1d__" alt="Figure S1d: median age mapped over the comb for colony A." data-caption="Figure S1d (colony A) — median age over the comb">
+                <div class="cap"><h4>S1d &middot; Median age over the comb</h4>Old bees at the entrance, young in the centre — the spatial layout replicates. <code>figure_S1d.png</code></div>
+              </div>
+              <div class="sub">
+                <img src="__ASSET_fig_s1e__" alt="Figure S1e: rhythm parameters against distance to the entrance for colony A." data-caption="Figure S1e (colony A) — rhythm parameters vs. distance to entrance">
+                <div class="cap"><h4>S1e &middot; Parameters vs. distance</h4>The gradient panel for colony A. Use this one if anybody asks whether Fig. 1e is a single-colony result. <code>figure_S1e.png</code></div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </article>
+    </section>
+
+    <!-- ================================================================ ACT 3 -->
+    <section class="act" id="act3">
+      <div class="act-head">
+        <span class="act-num">03</span>
+        <h2>Bumping transfers speed, and it is directional</h2>
+      </div>
+      <p class="act-intro">
+        A gradient that builds over hours rules out the fast Zeitgebers — light leaking in,
+        odour, temperature, vibration all spread near-instantly. Something slow and
+        behavioural is left. This act tests the obvious candidate: bees running into each
+        other. An interaction is defined by overlap of the two 14&thinsp;&times;&thinsp;6&thinsp;mm
+        body rectangles; the effect is mean speed over 30&thinsp;s after minus 30&thinsp;s
+        before, computed with each partner taken as focal in turn.
+      </p>
+
+      <article class="plate" id="fig-2">
+        <div class="plate-fig">
+          <img src="__ASSET_fig2__" alt="Figure 2, colony B: speed-quantile and phase-quantile interaction matrices against null models, and egocentric body maps of speed change for focal and non-focal bee." data-caption="Figure 2 (colony B) — dynamic physical interaction leads to speed transfer">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Main figure</span><span>speed_transfer_paper/figure_2_colony_B.png</span></div>
+          <h3>Fast bees give speed to slow bees, and where the contact lands decides who gains</h3>
+          <p>
+            The null model resamples two bees at random on the comb at each interaction time
+            and measures their speed changes the same way. Against it, the real data differ in
+            35 of 36 cells for colony B and 34 of 36 for colony A (Welch's t-test, p&thinsp;&lt;&thinsp;0.05).
+          </p>
+          <ul class="panels">
+            <li><span class="p">a</span><span class="txt"><b>Speed &times; speed, real vs. null.</b> Both bees binned into six speed quantiles at contact onset; colour is the focal bee's speed change. The fastest bees (quantile 6) lose the most, especially against slow partners; slow bees gain.<span class="axes">x: focal bee's start-speed quantile &middot; y: partner's start-speed quantile &middot; colour: focal speed change [mm/s]</span></span></li>
+            <li><span class="p">b</span><span class="txt"><b>Phase &times; phase, real vs. null.</b> Same layout, binned by cosinor peak time instead. Late-peaking bees gain the most, and gain most from early-peaking partners — which are the older, more rhythmic, entrance-side bees. The null panel is flat. Note the effect is roughly an order of magnitude smaller than in <b>a</b>: speed is the driver, phase rides along with it.<span class="axes">x / y: peak-time quantile &middot; colour: focal speed change [mm/s]</span></span></li>
+            <li><span class="p">c</span><span class="txt"><b>Where the focal bee was touched.</b> Speed change projected into the focal bee's own body frame. Contact at the head is negative (dark), contact at the rear is positive (yellow). Circle area is the number of observations.<span class="axes">x / y: position around the body [mm], bee drawn to scale &middot; colour: speed change [mm/s]</span></span></li>
+            <li><span class="p">d</span><span class="txt"><b>What happened to the partner.</b> Same coordinate frame, partner's speed change. Mirror image of <b>c</b>: being hit by a head accelerates you, running into someone's rear slows you. Bees mostly move forwards, so this is exactly a nudge from behind.<span class="axes">x / y: position around the focal bee [mm] &middot; colour: partner's speed change [mm/s]</span></span></li>
+          </ul>
+          <div class="say">
+            <span class="lbl">Say this</span>
+            <q>When a bee bumps into the back of a nestmate she loses speed and the nestmate gains it. It is not generic arousal from being touched — the sign of the effect depends on which end of the body the contact lands on.</q>
+          </div>
+          <div class="flag">
+            <b>Two things to have ready</b>
+            <p>
+              <b>The null model shows the same qualitative pattern.</b> Fast bees slow and slow
+              bees speed up even in shuffled data, because speed is bounded — a bee at top speed
+              can only decelerate, a resting bee can only accelerate. The claim rests on the
+              <em>difference</em> from that baseline, not on the raw direction. Say it yourself
+              before it is asked.
+            </p>
+            <p>
+              <b>Avoid the momentum analogy.</b> The preprint calls this "analogous to particles
+              transferring momentum"; a reviewer objected and the manuscript is being revised,
+              because nothing is conserved here — total speed is not preserved across a contact.
+              Nudging or handing over activity is safer language.
+            </p>
+            <p>
+              <b>Check the Fig. 2b statistic.</b> <code>main.tex</code> still carries an
+              unresolved note at that sentence — "36 out of 36 with p&thinsp;&lt;&thinsp;0.01&thinsp;??" —
+              so the count for the phase panel is not settled. Don't quote a number for
+              <b>b</b> until it is.
+            </p>
+          </div>
+
+          <details class="extra">
+            <summary>Supporting analyses — Figures S2, S5, S4</summary>
+            <div class="extra-grid">
+              <div class="sub">
+                <img src="__ASSET_fig_s2__" alt="Figure S2: the full Figure 2 analysis repeated for colony A." data-caption="Figure S2 (colony A) — speed transfer replicate">
+                <div class="cap"><h4>S2 &middot; Colony A replicate</h4>All four panels of Fig. 2, repeated on the independent colony. The 34-of-36 significant cells come from here. <code>figure_s2.png</code></div>
+              </div>
+              <div class="sub">
+                <img src="__ASSET_fig_s5__" alt="Figure S5: speed change of resting bees by contact position around the body, positive everywhere." data-caption="Figure S5 — resting bees are aroused regardless of contact site">
+                <div class="cap"><h4>S5 &middot; Resting bees are the exception</h4>Below 1&thinsp;mm/s the directional effect disappears: contact anywhere on the body produces acceleration. So the mechanism is <em>nudging for moving bees, arousal for resting ones</em>. Worth showing — it is the honest complication in the story. <code>figure_s5.png</code></div>
+              </div>
+              <div class="sub">
+                <img src="__ASSET_fig_s4__" alt="Figure S4: focal bee speed change across 6x6 quantiles of R-squared and age, for both colonies." data-caption="Figure S4 — speed change across R² and age quantiles">
+                <div class="cap"><h4>S4 &middot; <i>R</i>&sup2; and age quantiles</h4>The same 6&thinsp;&times;&thinsp;6 treatment applied to rhythm strength and age, both colonies (row a = A, row b = B). Effects are present but weak — the argument that speed itself, not age or rhythm strength, is what transfers. <code>figure_s4.png</code></div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </article>
+    </section>
+
+    <!-- ================================================================ ACT 4 -->
+    <section class="act" id="act4">
+      <div class="act-head">
+        <span class="act-num">04</span>
+        <h2>Activity travels through the nest as a wave</h2>
+      </div>
+      <p class="act-intro">
+        Local rule established, this act shows what it produces at colony scale — and adds the
+        piece that only whole-colony tracking makes possible: following activating contacts
+        backwards in time to find who started them.
+      </p>
+
+      <article class="plate" id="fig-3">
+        <div class="plate-fig">
+          <img src="__ASSET_fig3__" alt="Figure 3, colony B: observed phase map on the comb, simulated phase map, interaction-tree vertex depth per location, and speed change against hour and distance to entrance." data-caption="Figure 3 (colony B) — activity propagates in a wave-like manner through the nest">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Main figure</span><span>speed_transfer_paper/figure_3_colony_B.png</span></div>
+          <h3>The entrance leads, the nest core follows, and the chains of contacts point back to the entrance</h3>
+          <p>
+            For <b>c</b>: for a given young rhythmic bee, the interactions that accelerated her
+            were identified, then the interactions that accelerated <em>those</em> partners, and
+            so on backwards in time. That yields a tree with the target bee at the root and
+            driver bees at the leaves. Those drivers peak earlier, have higher <i>R</i>&sup2;,
+            and are older than the rest of the nest (Brunner–Munzel, p&thinsp;&lt;&thinsp;0.001).
+          </p>
+          <ul class="panels">
+            <li><span class="p">a</span><span class="txt"><b>Observed peak time over the comb.</b> Median phase per location, entrance at the lower left. Yellow (early) at the entrance grading to dark (late) in the core — roughly 12.3&thinsp;h to 14.7&thinsp;h.<span class="axes">comb view [mm] &middot; colour: hour of peak activity</span></span></li>
+            <li><span class="p">b</span><span class="txt"><b>Same map from the model.</b> Crosses mark where each group starts: group 1 rhythmic at the entrance (lower left), group 2 non-rhythmic in the core. The gradient is emergent — group 2 has no rhythm of its own and no access to the driver except through contact.<span class="axes">simulated arena [mm] &middot; colour: hour of peak activity</span></span></li>
+            <li><span class="p">c</span><span class="txt"><b>Where activating chains begin.</b> Average depth of interaction-tree vertices per location. High values (yellow, at the entrance) mean many further interactions sit downstream of a bee in that spot.<span class="axes">comb view &middot; colour: average vertex depth</span></span></li>
+            <li><span class="p">d</span><span class="txt"><b>When and where transfer is strongest.</b> Post-interaction speed change against time of day and distance to the entrance. The bright block is 9&thinsp;am–3&thinsp;pm within ~15&thinsp;cm of the entrance; further in, the effect is both weaker and later. This panel <em>is</em> the wave.<span class="axes">x: hour of day &middot; y: distance to hive exit &middot; colour: post-interaction speed change [mm/s]</span></span></li>
+          </ul>
+          <div class="say">
+            <span class="lbl">Say this</span>
+            <q>Trace every activating contact backwards and the chains converge on the entrance. Activity is not switched on everywhere at once — it starts where the foragers are and works inwards, arriving in the brood nest about two hours late.</q>
+          </div>
+          <div class="flag">
+            <b>Note on panel d axes</b>
+            <p>
+              The y-axis on <b>d</b> is labelled in millimetres but the range runs 0–14, i.e. it is
+              in centimetres — matching the "&lt;&thinsp;15&thinsp;cm" claim in the text. Same for
+              the axes of <b>c</b>. Worth fixing in the figure before it goes on a screen at
+              conference size.
+            </p>
+          </div>
+        </div>
+      </article>
+
+      <article class="plate" id="anim-fit">
+        <div class="plate-fig">
+          <video src="__ASSET_vid_fit__" controls loop muted playsinline preload="metadata" aria-label="Animation: fitted cosine value over the comb across 24 hours."></video>
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Animation</span><span>figures/animations/flow_fit.gif</span></div>
+          <h3>The wave, played over a day</h3>
+          <p>
+            The fitted cosine value at every comb location, stepped through 24&thinsp;h — the
+            time-resolved version of Fig. 3a. Activity lights up along the entrance edge and
+            fills inwards, then drains the same way. Lead with this one: it makes the case in
+            eight seconds that the static phase map makes in a paragraph. Controls are on, so
+            it can be paused on a frame while talking.
+          </p>
+          <div class="say">
+            <span class="lbl">Say this</span>
+            <q>Watch the lower left. That is the entrance, and the day starts there.</q>
+          </div>
+
+          <details class="extra">
+            <summary>The other two animations</summary>
+            <div class="extra-grid">
+              <div class="sub" style="grid-template-columns: minmax(0, 340px) minmax(0, 1fr);">
+                <video src="__ASSET_vid_interactions__" controls loop muted playsinline preload="metadata" style="width:100%; background:var(--plate); border:1px solid var(--line);" aria-label="Animation: number of interactions per comb location across 24 hours."></video>
+                <div class="cap"><h4>Interaction count over the day</h4>Where contacts actually happen, hour by hour. Noisier than the fit animation because it is raw counts rather than a fitted surface — use it only if someone asks whether the wave is an artefact of the cosinor fit. <code>flow_n_interactions.gif</code></div>
+              </div>
+              <div class="sub" style="grid-template-columns: minmax(0, 340px) minmax(0, 1fr);">
+                <video src="__ASSET_vid_velchange__" controls loop muted playsinline preload="metadata" style="width:100%; background:var(--plate); border:1px solid var(--line);" aria-label="Animation: post-interaction velocity change per comb location across 24 hours."></video>
+                <div class="cap"><h4>Post-interaction speed change over the day</h4>The animated form of Fig. 3d, mapped onto the comb rather than binned by distance. Very noisy per pixel; the binned figure is the better slide. <code>flow_vel_change.gif</code></div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </article>
+    </section>
+
+    <!-- ================================================================ ACT 5 -->
+    <section class="act" id="act5">
+      <div class="act-head">
+        <span class="act-num">05</span>
+        <h2>Is the model just tuned to give the answer?</h2>
+      </div>
+      <p class="act-intro">
+        Backup slides — this material was produced for the revision and answers the question
+        that always comes from the floor. The model has four structural ingredients besides
+        the external driver: walls, a location preference (homing), speed transfer, and
+        turning noise. Every one was removed, alone and in all 2<sup>4</sup> combinations,
+        five seeds each, with a 200-permutation test for whether group 2 ends up rhythmic.
+      </p>
+
+      <article class="plate" id="fig-3b-sim">
+        <div class="plate-fig">
+          <img src="__ASSET_fig3b_sim__" alt="Regenerated simulated phase map over the arena, with group 1 and group 2 start positions marked." data-caption="Regenerated simulated phase map (Fig. 3b)">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Model output</span><span>simulation/visualizations/figure_3b_simulated.png</span></div>
+          <h3>The simulated phase map, regenerated from the current model code</h3>
+          <p>
+            Same panel as Fig. 3b, re-run after the model was cleaned up for the revision — an
+            undocumented extra homing term that applied only to group 1 was found and removed.
+            The gradient survives it. Use this version rather than the preprint panel if
+            anyone asks whether the published figure still reproduces.
+          </p>
+          <div class="say">
+            <span class="lbl">Say this</span>
+            <q>Two groups, one rule between them. Nobody tells group 2 what time it is except the agents bumping into them.</q>
+          </div>
+        </div>
+      </article>
+
+      <article class="plate" id="ablation-single">
+        <div class="plate-fig">
+          <img src="__ASSET_abl_single__" alt="Horizontal bar chart of group 2 rhythmicity amplitude under single-component ablations; only removing speed transfer or the external driver abolishes rhythmicity." data-caption="Single-factor ablation — group 2 rhythmicity amplitude">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Backup slide</span><span>simulation/visualizations/ablation_single_factor.png</span></div>
+          <h3>Remove speed transfer and the effect vanishes; remove anything else and it survives</h3>
+          <p>
+            The bar is the fitted amplitude of the non-rhythmic group's mean speed
+            (mean&thinsp;&plusmn;&thinsp;SEM, n&thinsp;=&thinsp;5 seeds); grey means the
+            permutation test found no significant rhythm. Baseline sits at 0.220. Cutting
+            speed transfer drops it to 0.0017 and it goes non-significant. Homing (0.227) and
+            turning noise (0.225) change nothing at all. Walls matter but only as an amplifier
+            — 0.071, still significant — because confinement raises the contact rate.
+            Homogenising the starting positions actually <em>helps</em> (0.274): mixing the
+            groups produces more early cross-group contacts.
+          </p>
+          <div class="say">
+            <span class="lbl">Say this</span>
+            <q>We took the model apart piece by piece. Speed transfer is the only piece the result depends on — everything else changes how strong it is, not whether it happens.</q>
+          </div>
+        </div>
+      </article>
+
+      <article class="plate" id="ablation-factorial">
+        <div class="plate-fig">
+          <img src="__ASSET_abl_factorial__" alt="Full 2^4 factorial ablation: component on/off grid beside group 2 amplitude bars; amplitude collapses whenever speed transfer is off." data-caption="Full 2⁴ factorial ablation over four model components">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Backup slide</span><span>simulation/visualizations/ablation_factorial_heatmap.png</span></div>
+          <h3>All sixteen combinations, and the third column decides every one of them</h3>
+          <p>
+            Left grid: blue means the component is active, grey means ablated. Right: the
+            resulting amplitude. Read down the speed-transfer column — whenever it is grey, the
+            bar collapses to ~0.002 no matter what the other three are doing. The remaining
+            structure is walls, which sets whether the surviving rows land near 0.22 or near
+            0.07.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <caption>Ablation results, mean&thinsp;&plusmn;&thinsp;SEM over n&thinsp;=&thinsp;5 seeds. <i>A</i><sub>1</sub>, <i>A</i><sub>2</sub> are the fitted amplitudes of the group&nbsp;1 (forager) and group&nbsp;2 (hive bee) mean-speed series; &Delta;&phi; is group&nbsp;2's phase lag behind group&nbsp;1; <i>p</i><sub>2</sub> is the permutation test for group&nbsp;2 rhythmicity (200 permutations). Run at <i>d</i>&thinsp;=&thinsp;1.0, <i>T</i><sub>day</sub>&thinsp;=&thinsp;100&nbsp;steps, &gamma;&thinsp;=&thinsp;0.8. Lag is omitted where group&nbsp;2 was not significantly rhythmic. Source: <code>ablation_table.tex</code>.</caption>
+              <thead>
+                <tr><th scope="col">Condition</th><th scope="col"><i>A</i><sub>1</sub></th><th scope="col"><i>A</i><sub>2</sub></th><th scope="col">&Delta;&phi; (&deg;)</th><th scope="col"><i>p</i><sub>2</sub></th></tr>
+              </thead>
+              <tbody>
+                <tr class="baseline"><td>Baseline (all components)</td><td>1.25 &plusmn; 0.00</td><td>0.220 &plusmn; 0.005</td><td>14.8 &plusmn; 0.6</td><td>&lt;&thinsp;0.01</td></tr>
+                <tr class="killed"><td>No speed transfer</td><td>1.25 &plusmn; 0.00</td><td>0.0017 &plusmn; 0.0008</td><td>&mdash;</td><td>0.65</td></tr>
+                <tr><td>No homing (location preference)</td><td>1.25 &plusmn; 0.00</td><td>0.227 &plusmn; 0.004</td><td>12.7 &plusmn; 1.3</td><td>&lt;&thinsp;0.01</td></tr>
+                <tr><td>No walls (unbounded arena)</td><td>1.25 &plusmn; 0.00</td><td>0.071 &plusmn; 0.002</td><td>20.2 &plusmn; 4.3</td><td>&lt;&thinsp;0.01</td></tr>
+                <tr><td>No turning noise</td><td>1.25 &plusmn; 0.00</td><td>0.225 &plusmn; 0.003</td><td>14.8 &plusmn; 0.6</td><td>&lt;&thinsp;0.01</td></tr>
+                <tr class="killed"><td>No external driver</td><td>0.01 &plusmn; 0.00</td><td>0.006 &plusmn; 0.002</td><td>&mdash;</td><td>0.36</td></tr>
+                <tr><td>Homogenized initial positions</td><td>1.24 &plusmn; 0.00</td><td>0.274 &plusmn; 0.003</td><td>8.6 &plusmn; 1.0</td><td>&lt;&thinsp;0.01</td></tr>
+                <tr class="killed"><td>No homing + no speed transfer</td><td>1.25 &plusmn; 0.00</td><td>0.0025 &plusmn; 0.0002</td><td>&mdash;</td><td>0.31</td></tr>
+                <tr class="killed"><td>No walls + no speed transfer</td><td>1.25 &plusmn; 0.00</td><td>0.0022 &plusmn; 0.0003</td><td>&mdash;</td><td>0.42</td></tr>
+                <tr><td>No walls + no homing</td><td>1.25 &plusmn; 0.00</td><td>0.069 &plusmn; 0.004</td><td>7.7 &plusmn; 1.6</td><td>&lt;&thinsp;0.01</td></tr>
+                <tr class="killed"><td>No walls, homing, or speed transfer</td><td>1.25 &plusmn; 0.00</td><td>0.0031 &plusmn; 0.0005</td><td>&mdash;</td><td>0.21</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="flag">
+            <b>Have the unit conversion ready</b>
+            <p>
+              &Delta;&phi; is in <em>degrees of the simulated cycle</em>, not hours. The baseline
+              14.8&deg; is about 1.0&thinsp;h on a 24&thinsp;h cycle, against roughly 2&thinsp;h in
+              the bees. So the model reproduces the <em>direction and existence</em> of the lag,
+              not its magnitude — and the sensitivity sweeps in act 6 show the lag is tunable
+              anyway. Better to state that yourself than to have the arithmetic done from the
+              floor.
+            </p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ================================================================ ACT 6 -->
+    <section class="act" id="act6">
+      <div class="act-head">
+        <span class="act-num">06</span>
+        <h2>How robust is it to the parameters?</h2>
+      </div>
+      <p class="act-intro">
+        Three tunable parameters: agent density <i>d</i>, day length <i>T</i><sub>day</sub>,
+        and the decay &gamma; of the speed-transfer memory. Each was swept alone with the
+        others at baseline (<i>d</i>&thinsp;=&thinsp;1.0, <i>T</i><sub>day</sub>&thinsp;=&thinsp;100,
+        &gamma;&thinsp;=&thinsp;0.8), five seeds per point. The transfer never disappears
+        anywhere in these ranges — what moves is how strong it is and how long it takes.
+      </p>
+
+      <article class="plate" id="sens-density">
+        <div class="plate-fig">
+          <img src="__ASSET_sens_density__" alt="Two panels: group 2 amplitude rising with density, and phase shift falling with density." data-caption="Sensitivity to agent density">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Backup slide</span><span>simulation/visualizations/sensitivity_density.png</span></div>
+          <h3>More crowding means a stronger and faster-arriving rhythm</h3>
+          <p>
+            Density sets how many partners are available, so it directly controls the contact
+            rate. Amplitude climbs from 0.07 at <i>d</i>&thinsp;=&thinsp;0.25 to 0.37 at
+            <i>d</i>&thinsp;=&thinsp;3.0, and the lag shrinks from about 17&deg; to 9&deg;.
+            Both are monotonic and both are the direction you would predict, which is the
+            point of showing it.
+          </p>
+          <div class="say">
+            <span class="lbl">Say this</span>
+            <q>If the mechanism is contact, then packing the arena tighter should make the rhythm arrive stronger and sooner. It does.</q>
+          </div>
+        </div>
+      </article>
+
+      <article class="plate" id="sens-decay">
+        <div class="plate-fig">
+          <img src="__ASSET_sens_decay__" alt="Two panels: group 2 amplitude and phase shift both rising with the speed-transfer decay parameter." data-caption="Sensitivity to speed-transfer decay γ">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Backup slide</span><span>simulation/visualizations/sensitivity_decay.png</span></div>
+          <h3>Memory of past contacts sets both the size of the effect and the length of the delay</h3>
+          <p>
+            &gamma; is a leaky memory: the accumulated transfer is multiplied by &gamma; each
+            step, so &gamma;&thinsp;=&thinsp;0 means only the instantaneous contact counts.
+            Amplitude rises from 0.06 at &gamma;&thinsp;=&thinsp;0 to 0.30 at
+            &gamma;&thinsp;=&thinsp;0.9, and the lag roughly triples, 7&deg; to 21&deg; — long
+            memory acts as inertia, so it takes longer for the current driving phase to win out.
+            The result that matters: transfer stays significant (p&thinsp;&lt;&thinsp;0.01)
+            even at &gamma;&thinsp;=&thinsp;0. The mechanism does not need integration over time.
+          </p>
+          <div class="say">
+            <span class="lbl">Say this</span>
+            <q>Even with no memory at all — where only the contact happening right now counts — the rhythm still transfers.</q>
+          </div>
+        </div>
+      </article>
+
+      <article class="plate" id="sens-day">
+        <div class="plate-fig">
+          <img src="__ASSET_sens_day__" alt="Two panels: group 2 amplitude flat across day duration, phase shift falling steeply with day duration." data-caption="Sensitivity to day duration T_day">
+        </div>
+        <div class="plate-body">
+          <div class="eyebrow"><span class="tag">Backup slide</span><span>simulation/visualizations/sensitivity_day_duration.png</span></div>
+          <h3>Day length leaves the effect size alone but rescales the reported lag</h3>
+          <p>
+            Amplitude is essentially flat above <i>T</i><sub>day</sub>&thinsp;=&thinsp;75
+            (<i>A</i><sub>2</sub>&thinsp;&asymp;&thinsp;0.22): the steady-state transfer does not
+            depend on temporal resolution. The lag, though, falls from about 31&deg; at
+            <i>T</i><sub>day</sub>&thinsp;=&thinsp;50 to 2&deg; at 800 — because the propagation
+            delay is roughly constant in <em>simulation steps</em>, so a longer cycle turns the
+            same delay into a smaller fraction of 360&deg;.
+          </p>
+          <div class="flag">
+            <b>This explains an apparent contradiction</b>
+            <p>
+              The 2-D sweeps below report ~2.7&deg; at the nominal baseline cell while the
+              1-D sweeps report ~14.8&deg;. They are not inconsistent: the 2-D sweeps were run at
+              <i>T</i><sub>day</sub>&thinsp;=&thinsp;400
+              (<code>run_phase_shift_sweep.py:46</code>), the 1-D sweeps at 100, and this panel is
+              exactly the rescaling that accounts for the difference. Worth knowing before both
+              sets of numbers end up on the same slide.
+            </p>
+          </div>
+        </div>
+      </article>
+
+      <article class="plate" id="sweeps-2d">
+        <div class="plate-body" style="padding-bottom: 8px;">
+          <div class="eyebrow"><span class="tag support">Deep backup</span><span>simulation/visualizations/sweep_density_*.png</span></div>
+          <h3>Two-dimensional sweeps</h3>
+          <p>
+            Density crossed with decay and with day length, three seeds per cell, run at
+            <i>T</i><sub>day</sub>&thinsp;=&thinsp;400 and 1200 steps of simulation. These are
+            for the discussion afterwards rather than the talk itself — the &gamma;&thinsp;=&thinsp;1
+            column is a degenerate no-decay case (memory never fades) and its ~146&deg; values
+            should not be read as a phase lag.
+          </p>
+          <details class="extra" open>
+            <summary>Four heatmaps</summary>
+            <div class="extra-grid">
+              <div class="sub">
+                <img src="__ASSET_sweep_dd_amp__" alt="Heatmap of group 2 amplitude across density and decay." data-caption="Sweep — group 2 amplitude, density × decay">
+                <div class="cap"><h4>Amplitude &middot; density &times; decay</h4>Amplitude rises with both, so the two act together rather than trading off. <code>sweep_density_decay_amp.png</code></div>
+              </div>
+              <div class="sub">
+                <img src="__ASSET_sweep_dd_phase__" alt="Heatmap of phase shift across density and decay." data-caption="Sweep — phase shift, density × decay">
+                <div class="cap"><h4>Phase shift &middot; density &times; decay</h4>Small positive lags across the usable range; ignore the &gamma;&thinsp;=&thinsp;1 column. <code>sweep_density_decay_phase.png</code></div>
+              </div>
+              <div class="sub">
+                <img src="__ASSET_sweep_du_amp__" alt="Heatmap of group 2 amplitude across density and day duration." data-caption="Sweep — group 2 amplitude, density × day duration">
+                <div class="cap"><h4>Amplitude &middot; density &times; day length</h4>Density carries the amplitude; day length barely enters. <code>sweep_density_duration_amp.png</code></div>
+              </div>
+              <div class="sub">
+                <img src="__ASSET_sweep_du_phase__" alt="Heatmap of phase shift across density and day duration." data-caption="Sweep — phase shift, density × day duration">
+                <div class="cap"><h4>Phase shift &middot; density &times; day length</h4>The clean version of the rescaling above: short cycles, large apparent lag. <code>sweep_density_duration_phase.png</code></div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </article>
+    </section>
+
+    <footer class="colophon">
+      <p>
+        Figures pulled from <code>speed_transfer_paper/</code>, <code>figures/</code> and
+        <code>simulation/visualizations/</code>; panel descriptions follow the captions in
+        <code>main.tex</code> and <code>ablation_study.tex</code>. Everything is embedded in
+        this file — it works offline and makes no network requests.
+      </p>
+      <p>
+        Rebuild after re-plotting anything: <code>python3 talk/build_figure_view.py</code>
+      </p>
+    </footer>
+
+  </main>
+</div>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Figure at full size">
+  <div class="lightbox-bar">
+    <span id="lb-caption"></span>
+    <span class="hint">&larr; &rarr; to move &middot; Esc to close</span>
+    <button type="button" id="lb-close">Close</button>
+  </div>
+  <img id="lb-img" src="" alt="">
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* --- rail highlighting ------------------------------------------------- */
+  var acts = Array.prototype.slice.call(document.querySelectorAll(".act"));
+  var links = Array.prototype.slice.call(document.querySelectorAll(".rail a"));
+
+  if ("IntersectionObserver" in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var id = entry.target.id;
+        links.forEach(function (link) {
+          link.classList.toggle("is-active", link.getAttribute("href") === "#" + id);
+        });
+      });
+    }, { rootMargin: "-10% 0px -75% 0px" });
+    acts.forEach(function (act) { observer.observe(act); });
+  }
+
+  /* --- lightbox ---------------------------------------------------------- */
+  var zoomable = Array.prototype.slice.call(document.querySelectorAll("img[data-caption]"));
+  var box = document.getElementById("lightbox");
+  var boxImg = document.getElementById("lb-img");
+  var boxCap = document.getElementById("lb-caption");
+  var closeBtn = document.getElementById("lb-close");
+  var index = -1;
+  var lastFocus = null;
+
+  function show(i) {
+    if (i < 0 || i >= zoomable.length) return;
+    index = i;
+    var source = zoomable[i];
+    boxImg.src = source.src;
+    boxImg.alt = source.alt;
+    boxCap.textContent = source.getAttribute("data-caption") || "";
+    box.setAttribute("open", "");
+    closeBtn.focus();
+  }
+
+  function hide() {
+    box.removeAttribute("open");
+    boxImg.src = "";
+    index = -1;
+    if (lastFocus) lastFocus.focus();
+  }
+
+  zoomable.forEach(function (img, i) {
+    img.tabIndex = 0;
+    img.setAttribute("role", "button");
+    img.addEventListener("click", function () { lastFocus = img; show(i); });
+    img.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        lastFocus = img;
+        show(i);
+      }
+    });
+  });
+
+  closeBtn.addEventListener("click", hide);
+  box.addEventListener("click", function (event) {
+    if (event.target === box || event.target === boxImg) hide();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (!box.hasAttribute("open")) return;
+    if (event.key === "Escape") hide();
+    if (event.key === "ArrowRight") show((index + 1) % zoomable.length);
+    if (event.key === "ArrowLeft") show((index - 1 + zoomable.length) % zoomable.length);
+  });
+
+  /* Expanding a <details> makes new images zoomable positions valid already,
+     since the list is captured once and hidden images keep their src. */
+})();
+</script>
+
+</body>
+</html>
