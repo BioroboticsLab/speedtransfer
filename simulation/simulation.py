@@ -16,6 +16,7 @@ from __future__ import annotations
 import math
 import csv
 import sys
+import itertools
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple
@@ -58,7 +59,6 @@ class EnvironmentParameters:
     bins_y: int = 30
     speed_scale: float = 50.0
     homing_pull: float = 0.1
-    speed_transfer_scale: float = 1.0
     speed_transfer_decay: float = 0.8
     interaction_threshold_factor: float = 0.2
 
@@ -222,14 +222,76 @@ def _bin_statistics(
 
 
 def _print_progress(current: int, total: int, prefix: str = "") -> None:
-    bar_len = 30
-    filled = int(bar_len * current / total)
-    bar = "#" * filled + "-" * (bar_len - filled)
-    percent = 100 * current / total
-    sys.stdout.write(f"\r{prefix} [{bar}] {percent:5.1f}%")
+    percent = 100 * (current / total)
+    sys.stdout.write(f"\r{prefix}: {percent:5.1f}% |{'█' * int(percent // 2):<50}| {current}/{total}")
     sys.stdout.flush()
-    if current >= total:
+    if current == total:
         sys.stdout.write("\n")
+
+
+def _find_interactions_spatial(
+    positions: np.ndarray,
+    threshold: float,
+    hive_bounds: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Find pairs of agents within `threshold` distance using a spatial hash.
+    
+    This replaces O(N^2) distance matrix calculations with a grid-based approach.
+    Returns (interacting_rows, interacting_cols) matching `np.where` on a 
+    distance matrix (i.e. including both (i,j) and (j,i) but excluding (i,i)).
+    """
+    if positions.shape[0] == 0:
+        return np.empty(0, dtype=int), np.empty(0, dtype=int)
+
+    x_min, _, y_min, _ = hive_bounds
+    cell_size = threshold
+    
+    # Map positions to grid cells
+    ix = ((positions[:, 0] - x_min) / cell_size).astype(int)
+    iy = ((positions[:, 1] - y_min) / cell_size).astype(int)
+    
+    cells: Dict[Tuple[int, int], list[int]] = {}
+    for i in range(positions.shape[0]):
+        key = (ix[i], iy[i])
+        if key not in cells:
+            cells[key] = []
+        cells[key].append(i)
+        
+    rows = []
+    cols = []
+    threshold_sq = threshold**2
+    
+    for (cx, cy), indices in cells.items():
+        # Check current cell and all 8 neighbors
+        neighbor_indices_list = []
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                neighbor_key = (cx + dx, cy + dy)
+                if neighbor_key in cells:
+                    neighbor_indices_list.extend(cells[neighbor_key])
+        
+        if not neighbor_indices_list:
+            continue
+            
+        n_idx_arr = np.array(neighbor_indices_list)
+        pos_neighbors = positions[n_idx_arr]
+        
+        for i in indices:
+            p1 = positions[i]
+            diff = pos_neighbors - p1
+            dist_sq = np.sum(diff**2, axis=1)
+            
+            mask = dist_sq < threshold_sq
+            # Exclude self-interaction
+            mask &= (n_idx_arr != i)
+            
+            if np.any(mask):
+                match_indices = n_idx_arr[mask]
+                rows.extend([i] * len(match_indices))
+                cols.extend(match_indices)
+                
+    return np.array(rows, dtype=int), np.array(cols, dtype=int)
 
 
 def _phase_to_degrees(phase_steps: float, period: float) -> float:
@@ -576,7 +638,6 @@ def run_simulation(
             else:
                 speed_external_driver = (
                     cfg.env.speed_scale
-                    * cfg.env.speed_transfer_scale
                     * group1_cfg.speed_fwd_mu
                     * 0.5
                     * (math.sin(time_step * 2.0 * math.pi / sim_day) + 1.0)
@@ -629,10 +690,7 @@ def run_simulation(
             if not abl.disable_homing:
                 home1 = np.tile(group1_cfg.mu, (group1_size, 1)) - agents[idx_group1, :2]
                 home1 = _normalize_rows(home1)
-                velocities[idx_group1] += (
-                    (cfg.env.speed_scale * cfg.env.homing_pull * group1_cfg.speed_fwd_mu)
-                    + (group1_cfg.speed_fwd_mu * cfg.env.speed_transfer_scale / 2.0)
-                ) * home1
+                velocities[idx_group1] += (cfg.env.speed_scale * cfg.env.homing_pull * group1_cfg.speed_fwd_mu) * home1
 
                 home2 = np.tile(group2_cfg.mu, (group2_size, 1)) - agents[idx_group2, :2]
                 home2 = _normalize_rows(home2)
@@ -654,11 +712,9 @@ def run_simulation(
                     agents[above, axis] = upper
                     agents[above, 2] = np.arctan2(-agents[above, 1], -agents[above, 0])
 
-            diff = agents[:, None, :2] - agents[None, :, :2]
-            distances = np.linalg.norm(diff, axis=2)
-            np.fill_diagonal(distances, 2.0 * interaction_threshold)
-            interactions = distances < interaction_threshold
-            interacting_rows, interacting_cols = np.where(interactions)
+            interacting_rows, interacting_cols = _find_interactions_spatial(
+                agents[:, :2], interaction_threshold, hive_bounds
+            )
             interacting_indices = (
                 np.unique(np.concatenate([interacting_rows, interacting_cols]))
                 if interacting_rows.size
@@ -740,7 +796,7 @@ def run_simulation(
         print(f"group 2 (green): speeds mu={group2_speed_mu:.4f}, std={group2_speed_sigma:.4f}")
 
         x_values = np.arange(1, sim_duration + 1, dtype=float)
-        valid_mask = x_values >= (0.25 * sim_day)
+        valid_mask = x_values >= sim_day  # Exclude first full day as burn-in
         sine_summary = compute_sine_summary(
             x_values, group1_mean_time, group2_mean_time, sim_day, rhythmicity_permutations, rng, valid_mask=valid_mask
         )
@@ -952,6 +1008,42 @@ def run_single_factor_ablation_suite(
     return run_ablation_study(
         density_factor=density_factor,
         ablations=configs,
+        config=config,
+        rhythmicity_permutations=rhythmicity_permutations,
+        rng=rng,
+    )
+
+
+def run_full_factorial_ablation(
+    density_factor: float,
+    factors: list[str],
+    config: Optional[SimulationConfig] = None,
+    rhythmicity_permutations: int = 200,
+    rng: Optional[np.random.Generator] = None,
+) -> dict[str, SimulationSummary]:
+    """
+    Run simulations for all combinations of the specified ablation factors.
+
+    `factors` should be a list of attribute names in `AblationConfig` (e.g., ['disable_walls', 'disable_homing']).
+    """
+    # Generate all combinations of False and True for the factors
+    combinations = list(itertools.product([False, True], repeat=len(factors)))
+
+    ablations = {}
+    for combo in combinations:
+        label_parts = []
+        ablation_params = {}
+        for factor, val in zip(factors, combo):
+            ablation_params[factor] = val
+            if val:
+                label_parts.append(factor.replace("disable_", "").replace("homogenize_", "no_"))
+        
+        label = "no_" + "+".join(label_parts) if label_parts else "baseline"
+        ablations[label] = AblationConfig(**ablation_params)
+
+    return run_ablation_study(
+        density_factor=density_factor,
+        ablations=ablations,
         config=config,
         rhythmicity_permutations=rhythmicity_permutations,
         rng=rng,
