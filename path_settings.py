@@ -81,7 +81,13 @@ def set_parameters(year: int, side: int):
     Set parameters for given year and side of hive.
     """
     if year == 2016:
-        exit_pos = (0, 250)
+        # Corrected 2016 nest-entrance coordinate (bottom-right comb corner).
+        # The 2016 recording stitches two cameras per side into one frame; the
+        # original value (0, 250) pointed at the opposite/empty corner, which
+        # inverted colony-A's distance-to-entrance relationships. Verified from
+        # the data (earliest phase + oldest foragers) -- see
+        # analysis/revision_2026/README.md.  (2019's (5, 264) is correct.)
+        exit_pos = (346, 270)
         cosinor_df_path = COSINOR_DF_PATH_2016
         agg_data_path = AGG_DATA_PATH_2016
         if side == 0:

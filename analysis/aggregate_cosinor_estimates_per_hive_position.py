@@ -70,11 +70,11 @@ if __name__ == "__main__":
     interaction_df["x_pos_start_focal"] = interaction_df["x_pos_start_focal"].round()
     interaction_df["y_pos_start_focal"] = interaction_df["y_pos_start_focal"].round()
 
-    # calculate dist exit
-    interaction_df["entrance_dist_focal"] = [
-        math.dist(exit_pos, (row["x_pos_start_focal"], row["y_pos_start_focal"]))
-        for index, row in interaction_df.iterrows()
-    ]
+    # calculate dist exit (vectorized; identical to math.dist over the rows)
+    interaction_df["entrance_dist_focal"] = np.hypot(
+        interaction_df["x_pos_start_focal"] - exit_pos[0],
+        interaction_df["y_pos_start_focal"] - exit_pos[1],
+    )
 
     # aggregate per hive position and for each parameter calculate median, std and count
     dist_agg_df = interaction_df.groupby(
@@ -97,5 +97,6 @@ if __name__ == "__main__":
         entrance_dist_focal_std=("entrance_dist_focal", "std"),
     )
 
-    # save pickle
-    dist_agg_df.to_csv(save_to, index=False)
+    # save; reset_index keeps x_pos_start_focal / y_pos_start_focal as columns
+    # (needed for the distance-to-entrance figures and the entrance diagnostics)
+    dist_agg_df.reset_index().to_csv(save_to, index=False)
