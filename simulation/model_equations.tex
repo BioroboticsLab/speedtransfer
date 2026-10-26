@@ -1,0 +1,233 @@
+% model_equations.tex — Supplementary: Agent-Based Simulation Model
+%
+% Self-contained document.  The content between \begin{document}...\end{document}
+% can also be pasted directly into the SI of the main manuscript.
+
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,booktabs,geometry}
+\geometry{margin=2.5cm}
+\newcommand{\vect}[1]{\mathbf{#1}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+
+\title{Agent-Based Model of Speed-Transfer-Mediated\\Collective Rhythmicity — Equations and Parameters}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Overview}
+
+The simulation models $N_1 + N_2$ agents on a two-dimensional rectangular arena
+representing the comb surface.  Group~1 (``rhythmic'' / foragers) receives an
+external sinusoidal speed driver; Group~2 (``non-rhythmic'' / hive bees) does
+not.  Speed transfer occurs when agents interact within a spatial proximity
+threshold, allowing the rhythmic pattern to propagate from Group~1 to Group~2.
+
+\section{State Variables}
+
+Each agent $i$ at time step $t$ is described by:
+\begin{itemize}
+  \item Position $\vect{x}_i^{(t)} = (x_i, y_i)^{(t)} \in \mathbb{R}^2$
+  \item Heading $\theta_i^{(t)} \in [0, 2\pi)$
+  \item Accumulated speed transfer $\Delta s_i^{(t)} \geq 0$
+\end{itemize}
+
+\section{Initialization ($t = 0$)}
+
+Positions are drawn from group-specific bivariate Gaussians centred at
+$\vect{\mu}_g$ with covariance $\Sigma_g = \sigma_s \, \vect{I}_2$:
+%
+\begin{equation}
+  \vect{x}_i^{(0)} \sim \mathcal{N}\!\bigl(\vect{\mu}_g,\; \Sigma_g\bigr),
+  \qquad
+  \theta_i^{(0)} \sim \mathrm{Uniform}(0,\, 2\pi),
+  \qquad
+  \Delta s_i^{(0)} = 0.
+\end{equation}
+
+\section{Per-Step Update ($t \to t+1$)}
+
+At every time step $t$ (with integer time label $\tau = t + 1$), agents are
+updated in the following order.
+
+\subsection{External Driver (Group~1 only)}
+
+Group~1 receives a sinusoidal speed boost that peaks once per simulated day
+of duration $T_{\mathrm{day}}$:
+%
+\begin{equation}
+  e^{(\tau)} = \frac{\sigma_s \, \mu_1^{\mathrm{fwd}}}{2}
+               \left(\sin\!\left(\frac{2\pi\,\tau}{T_{\mathrm{day}}}\right) + 1\right),
+\end{equation}
+%
+where $\sigma_s$ is the speed scale and
+$\mu_1^{\mathrm{fwd}}$ is Group~1's mean forward speed.  Group~2 receives
+$e^{(\tau)} = 0$.
+
+\subsection{Forward Speed Sampling}
+
+Forward speeds are drawn from a Gamma distribution parameterised by the
+group-specific mean $\mu_g^{\mathrm{fwd}}$ and standard deviation
+$\sigma_g^{\mathrm{fwd}}$, scaled by $\sigma_s$:
+%
+\begin{equation}\label{eq:gamma}
+  v_i^{\mathrm{raw}} \sim \mathrm{Gamma}\!\left(
+    k = \frac{(\sigma_s\,\mu_g^{\mathrm{fwd}})^2}{(\sigma_s\,\sigma_g^{\mathrm{fwd}})^2},\;
+    \theta = \frac{(\sigma_s\,\sigma_g^{\mathrm{fwd}})^2}{\sigma_s\,\mu_g^{\mathrm{fwd}}}
+  \right),
+  \qquad
+  v_i^{\mathrm{fwd}} = \max\!\bigl(v_{\min},\; v_i^{\mathrm{raw}}\bigr),
+\end{equation}
+%
+where $v_{\min}$ is a per-group lower-bound on forward speed and
+$(k, \theta)$ are the shape and scale of the Gamma distribution.  The total
+instantaneous speed is:
+%
+\begin{equation}
+  s_i^{(\tau)} = v_i^{\mathrm{fwd}} + e_i^{(\tau)} + \Delta s_i^{(\tau)}.
+\end{equation}
+
+\subsection{Turning Noise}
+
+Heading changes are drawn from a Von~Mises distribution:
+%
+\begin{equation}\label{eq:vonmises}
+  \delta\theta_i \sim \mathrm{VonMises}\!\left(
+    \mu = \mu_g^{\mathrm{turn}},\;
+    \kappa = \frac{1}{(\sigma_g^{\mathrm{turn}})^2}
+  \right).
+\end{equation}
+
+\subsection{Velocity and Position Update}
+
+The velocity vector combines the speed with the current heading:
+%
+\begin{equation}
+  \vect{v}_i = s_i^{(\tau)} \begin{pmatrix} \cos\theta_i^{(t)} \\ \sin\theta_i^{(t)} \end{pmatrix}.
+\end{equation}
+
+\paragraph{Homing pull.}
+Each group is attracted toward its home location $\vect{\mu}_g$:
+%
+\begin{equation}
+  \vect{v}_i \leftarrow \vect{v}_i
+    + \sigma_s \, h \, \mu_g^{\mathrm{fwd}}
+      \;\frac{\vect{\mu}_g - \vect{x}_i^{(t)}}
+             {\norm{\vect{\mu}_g - \vect{x}_i^{(t)}}},
+\end{equation}
+%
+where $h$ is the homing pull coefficient.
+
+The state is then updated:
+%
+\begin{align}
+  \vect{x}_i^{(t+1)} &= \vect{x}_i^{(t)} + \vect{v}_i, \\
+  \theta_i^{(t+1)}    &= \theta_i^{(t)} + \delta\theta_i.
+\end{align}
+
+\subsection{Wall Reflection}
+
+The arena is bounded by a rectangle
+$[{-L_x/2},\, {L_x/2}] \times [{-L_y/2},\, {L_y/2}]$.
+When an agent crosses a boundary, its position is clamped to the boundary and
+its heading is redirected toward the arena centre:
+%
+\begin{equation}
+  \text{if } x_i^{(t+1)} < -\tfrac{L_x}{2} \text{ or } x_i^{(t+1)} > \tfrac{L_x}{2}:
+  \qquad
+  \theta_i^{(t+1)} \leftarrow \arctan2\!\bigl(-y_i^{(t+1)},\, -x_i^{(t+1)}\bigr).
+\end{equation}
+%
+An analogous rule applies along the $y$-axis.
+
+\subsection{Spatial Interactions and Speed Transfer}
+
+At each time step, agent pairs within Euclidean distance
+$d_{\mathrm{int}} = \sqrt{\sigma_s}\;\rho$ are identified using spatial
+hashing.  The interaction threshold factor $\rho$ sets the interaction range
+as a fraction of the characteristic spatial scale $\sqrt{\sigma_s}$.  With the
+default value $\rho = 0.2$, agents interact within
+$d_{\mathrm{int}} \approx 1.4\;\mathrm{mm}$, corresponding to physical body
+contacts between bees on the comb surface.
+
+For each interacting pair $(i, j)$ where $s_j > s_i$, the speed difference is
+computed and the slower agent receives a boost:
+%
+\begin{equation}
+  \Delta s_i^{(\tau+1)} = \gamma \, \Delta s_i^{(\tau)}
+    + \max_{j \in \mathcal{N}_i}\!\bigl(s_j^{(\tau)} - s_i^{(\tau)}\bigr)^{+},
+\end{equation}
+%
+where $\gamma \in [0, 1)$ is the exponential decay rate,
+$\mathcal{N}_i = \{j : \norm{\vect{x}_j - \vect{x}_i} < d_{\mathrm{int}}\}$ is
+the set of neighbours, and $(\cdot)^{+} = \max(\cdot, 0)$.
+
+\section{Rhythmicity Analysis}
+
+After the simulation, the mean speed across agents within each group is
+computed for every time step.  A sinusoidal model is fitted to these time
+series by ordinary least squares:
+%
+\begin{equation}
+  \bar{s}_g(\tau) \approx \beta_0 + \beta_1 \sin\!\left(\frac{2\pi\,\tau}{T_{\mathrm{day}}}\right)
+                                   + \beta_2 \cos\!\left(\frac{2\pi\,\tau}{T_{\mathrm{day}}}\right),
+\end{equation}
+%
+yielding amplitude $A = \sqrt{\beta_1^2 + \beta_2^2}$ and phase
+$\phi = \arctan2(-\beta_2, \beta_1)$.  The phase shift between groups is
+$\Delta\phi = \phi_2 - \phi_1$.
+
+Statistical significance is assessed via a permutation test: the time labels
+are shuffled $n_{\mathrm{perm}}$ times, sine fits are recomputed, and the
+p-value is the fraction of permuted amplitudes exceeding the observed
+amplitude.
+
+\section{Parameter Table}
+
+\begin{table}[h]
+\centering
+\caption{Default parameter values used in all simulations unless otherwise noted.}
+\label{tab:params}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Symbol} & \textbf{Parameter} & \textbf{Value} & \textbf{Unit} \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Arena}} \\
+$L_x$ & Comb width  & 354 & mm \\
+$L_y$ & Comb height & 205 & mm \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Environment}} \\
+$\sigma_s$  & Speed scale                  & 50   & -- \\
+$h$         & Homing pull coefficient      & 0.1  & -- \\
+$\gamma$    & Speed transfer decay         & 0.8  & -- \\
+$\rho$      & Interaction threshold factor & 0.2  & -- \\
+$d_{\mathrm{int}}$ & Interaction threshold  & $\sqrt{50} \times 0.2 \approx 1.41$ & mm \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Timing}} \\
+$T_{\mathrm{day}}$ & Steps per simulated day & 400 & steps \\
+$T_{\mathrm{sim}}$ & Total simulation duration & 1200 & steps \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Group 1 (rhythmic)}} \\
+$\vect{\mu}_1$         & Home position           & $(-175, -100)$ & mm \\
+$\mu_1^{\mathrm{fwd}}$ & Mean forward speed      & 0.05  & mm/step \\
+$\sigma_1^{\mathrm{fwd}}$ & Std forward speed    & 0.02  & mm/step \\
+$v_{\min,1}$           & Minimum forward speed   & $-0.05$ & mm/step \\
+$\mu_1^{\mathrm{turn}}$   & Mean turning rate     & 0.0   & rad/step \\
+$\sigma_1^{\mathrm{turn}}$ & Std turning rate     & 0.5   & rad/step \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Group 2 (non-rhythmic)}} \\
+$\vect{\mu}_2$         & Home position           & $(0, 0)$  & mm \\
+$\mu_2^{\mathrm{fwd}}$ & Mean forward speed      & 0.02  & mm/step \\
+$\sigma_2^{\mathrm{fwd}}$ & Std forward speed    & 0.01  & mm/step \\
+$v_{\min,2}$           & Minimum forward speed   & $-0.05$ & mm/step \\
+$\mu_2^{\mathrm{turn}}$   & Mean turning rate     & 0.0   & rad/step \\
+$\sigma_2^{\mathrm{turn}}$ & Std turning rate     & 0.5   & rad/step \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Agent counts}} \\
+$N_g$ & Agents per group & $\lfloor 500 \times d \rceil$ & -- \\
+      & (density factor $d$) & 1.0 (default) & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}

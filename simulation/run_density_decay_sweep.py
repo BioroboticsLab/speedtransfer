@@ -48,7 +48,7 @@ def _combo_grid(densities: Iterable[float], decays: Iterable[float]) -> set[tupl
 
 def _load_cache(
     cache_file: Path,
-    expected_combos: set[tuple[float, float, float, float]],
+    expected_combos: set[tuple[float, float, float, float, float, float]],
     meta: dict,
 ) -> pd.DataFrame | None:
     if not cache_file.exists():
@@ -62,6 +62,8 @@ def _load_cache(
         "rhythmicity_permutations",
         "num_runs",
         "run_id",
+        "homing_pull",
+        "interaction_threshold_factor",
     }
     cached = pd.read_csv(cache_file)
     if not required_cols.issubset(cached.columns):
@@ -79,17 +81,19 @@ def _load_cache(
             filtered["speed_transfer_decay"],
             filtered["day_duration"],
             filtered["sim_duration"],
+            filtered["homing_pull"],
+            filtered["interaction_threshold_factor"],
         )
     )
     filtered = filtered[filtered["combo"].isin(expected_combos)].copy()
 
     counts = filtered.groupby(
-        ["density_factor", "speed_transfer_decay", "day_duration", "sim_duration"]
+        ["density_factor", "speed_transfer_decay", "day_duration", "sim_duration", "homing_pull", "interaction_threshold_factor"]
     ).run_id.nunique()
     complete = counts.reindex(
         pd.MultiIndex.from_tuples(
             sorted(expected_combos),
-            names=["density_factor", "speed_transfer_decay", "day_duration", "sim_duration"],
+            names=["density_factor", "speed_transfer_decay", "day_duration", "sim_duration", "homing_pull", "interaction_threshold_factor"],
         ),
         fill_value=0,
     ).ge(meta["num_runs"])
@@ -111,6 +115,8 @@ def _run_sweep(
     base_sim_duration: int,
     duration_policy: str,
     num_days: float,
+    homing_pulls: list[float],
+    interaction_threshold_factors: list[float],
     seed: int,
     cache_file: Path,
     force_recompute: bool,
@@ -124,12 +130,14 @@ def _run_sweep(
 
     cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-    expected_combos: set[tuple[float, float, float, float]] = set()
+    expected_combos: set[tuple[float, float, float, float, float, float]] = set()
     for day_duration in day_durations:
         sim_duration = int(day_duration * num_days) if duration_policy == "scale_sim" else base_sim_duration
         for density in densities:
             for decay in decays:
-                expected_combos.add((density, decay, day_duration, sim_duration))
+                for hp in homing_pulls:
+                    for itf in interaction_threshold_factors:
+                        expected_combos.add((density, decay, day_duration, sim_duration, hp, itf))
 
     cached = None if force_recompute else _load_cache(cache_file, expected_combos, meta)
     if cached is not None:
@@ -140,46 +148,55 @@ def _run_sweep(
     for day_duration in day_durations:
         sim_duration = int(day_duration * num_days) if duration_policy == "scale_sim" else base_sim_duration
         cfg = _build_config(day_duration=int(day_duration), sim_duration=int(sim_duration))
-        for density in densities:
-            for decay in decays:
-                seeds = seed_gen.integers(0, 1_000_000_000, size=num_runs)
-                for run_id, run_seed in enumerate(seeds):
-                    label = f"d{density:.2f}_decay{decay:.2f}_day{day_duration:.0f}_r{run_id}"
-                    ablations = {label: AblationConfig(speed_transfer_decay=decay)}
-                    rng = np.random.default_rng(int(run_seed))
-                    results = run_ablation_study(
-                        density_factor=density,
-                        ablations=ablations,
-                        config=cfg,
-                        rhythmicity_permutations=rhythmicity_permutations,
-                        rng=rng,
-                    )
-                    summary = results[label]
-                    simulated_days = sim_duration / day_duration
-                    records.append(
-                        {
-                            "label": label,
-                            "density_factor": density,
-                            "agents_per_group": 500 * density,
-                            "speed_transfer_decay": decay,
-                            "amplitude_group1": summary.amplitude_group1,
-                            "amplitude_group2": summary.amplitude_group2,
-                            "phase_group1": summary.phase_group1,
-                            "phase_group2": summary.phase_group2,
-                            "phase_shift": summary.phase_shift_g2_minus_g1,
-                            "p_value_group1": summary.rhythmicity_p_value_group1,
-                            "p_value_group2": summary.rhythmicity_p_value_group2,
-                            "day_duration": day_duration,
-                            "sim_duration": sim_duration,
-                            "simulated_days": simulated_days,
-                            "rhythmicity_permutations": rhythmicity_permutations,
-                            "num_runs": num_runs,
-                            "duration_policy": duration_policy,
-                            "num_days": num_days,
-                            "run_id": run_id,
-                            "seed": int(run_seed),
-                        }
-                    )
+        for hp in homing_pulls:
+            for itf in interaction_threshold_factors:
+                for density in densities:
+                    for decay in decays:
+                        seeds = seed_gen.integers(0, 1_000_000_000, size=num_runs)
+                        for run_id, run_seed in enumerate(seeds):
+                            label = f"d{density:.2f}_decay{decay:.2f}_day{day_duration:.0f}_hp{hp:.2f}_itf{itf:.2f}_r{run_id}"
+                            ablations = {label: AblationConfig(speed_transfer_decay=decay)}
+                            rng = np.random.default_rng(int(run_seed))
+                            
+                            # Update config with current sweep parameters
+                            cfg.env.homing_pull = hp
+                            cfg.env.interaction_threshold_factor = itf
+                            
+                            results = run_ablation_study(
+                                density_factor=density,
+                                ablations=ablations,
+                                config=cfg,
+                                rhythmicity_permutations=rhythmicity_permutations,
+                                rng=rng,
+                            )
+                            summary = results[label]
+                            simulated_days = sim_duration / day_duration
+                            records.append(
+                                {
+                                    "label": label,
+                                    "density_factor": density,
+                                    "agents_per_group": 500 * density,
+                                    "speed_transfer_decay": decay,
+                                    "homing_pull": hp,
+                                    "interaction_threshold_factor": itf,
+                                    "amplitude_group1": summary.amplitude_group1,
+                                    "amplitude_group2": summary.amplitude_group2,
+                                    "phase_group1": summary.phase_group1,
+                                    "phase_group2": summary.phase_group2,
+                                    "phase_shift": summary.phase_shift_g2_minus_g1,
+                                    "p_value_group1": summary.rhythmicity_p_value_group1,
+                                    "p_value_group2": summary.rhythmicity_p_value_group2,
+                                    "day_duration": day_duration,
+                                    "sim_duration": sim_duration,
+                                    "simulated_days": simulated_days,
+                                    "rhythmicity_permutations": rhythmicity_permutations,
+                                    "num_runs": num_runs,
+                                    "duration_policy": duration_policy,
+                                    "num_days": num_days,
+                                    "run_id": run_id,
+                                    "seed": int(run_seed),
+                                }
+                            )
 
     df = pd.DataFrame(records)
     df.sort_values(["day_duration", "sim_duration", "density_factor", "speed_transfer_decay", "run_id"], inplace=True)
@@ -189,8 +206,16 @@ def _run_sweep(
 
 
 def _aggregate(df: pd.DataFrame) -> pd.DataFrame:
+    group_cols = [
+        "density_factor", 
+        "speed_transfer_decay", 
+        "day_duration", 
+        "sim_duration",
+        "homing_pull",
+        "interaction_threshold_factor"
+    ]
     agg_df = (
-        df.groupby(["density_factor", "speed_transfer_decay", "day_duration", "sim_duration"])
+        df.groupby(group_cols)
         .agg(
             agents_per_group=("agents_per_group", "first"),
             amplitude_group2_mean=("amplitude_group2", "mean"),
@@ -288,6 +313,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--density-factors", type=_float_list, default="0.20,0.40,0.60,0.80,1.00,1.20")
     parser.add_argument("--decays", type=_float_list, default="0.0,0.4,0.8,0.95")
     parser.add_argument("--day-durations", type=_float_list, default="300")
+    parser.add_argument("--homing-pulls", type=_float_list, default="0.1")
+    parser.add_argument("--interaction-thresholds", type=_float_list, default="0.2")
     parser.add_argument("--num-runs", type=int, default=5)
     parser.add_argument("--rhythmicity-permutations", type=int, default=100)
     parser.add_argument(
@@ -304,9 +331,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--force-recompute", action="store_true", help="Ignore any existing cache and recompute.")
     args = parser.parse_args(argv)
 
-    densities = args.density_factors if isinstance(args.density_factors, list) else _float_list(args.density_factors)
-    decays = args.decays if isinstance(args.decays, list) else _float_list(args.decays)
-    day_durations = args.day_durations if isinstance(args.day_durations, list) else _float_list(args.day_durations)
+    densities = _float_list(args.density_factors) if isinstance(args.density_factors, str) else args.density_factors
+    decays = _float_list(args.decays) if isinstance(args.decays, str) else args.decays
+    day_durations = _float_list(args.day_durations) if isinstance(args.day_durations, str) else args.day_durations
+    homing_pulls = _float_list(args.homing_pulls) if isinstance(args.homing_pulls, str) else args.homing_pulls
+    interaction_threshold_factors = _float_list(args.interaction_thresholds) if isinstance(args.interaction_thresholds, str) else args.interaction_thresholds
 
     # Run or load sweep
     df = _run_sweep(
@@ -318,6 +347,8 @@ def main(argv: list[str] | None = None) -> None:
         base_sim_duration=args.sim_duration,
         duration_policy=args.duration_policy,
         num_days=args.num_days,
+        homing_pulls=homing_pulls,
+        interaction_threshold_factors=interaction_threshold_factors,
         seed=args.seed,
         cache_file=args.cache_file,
         force_recompute=args.force_recompute,

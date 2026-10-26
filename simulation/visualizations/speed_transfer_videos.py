@@ -125,12 +125,12 @@ def _simulate_with_history(
     hist["hive_bounds"] = cfg.env.hive_bounds
     hist["speed_transfer_decay"] = cfg.env.speed_transfer_decay
     t = np.arange(1, sim_duration + 1, dtype=float)
-    driver_amp = cfg.env.speed_scale * cfg.env.speed_transfer_scale * cfg.group1.speed_fwd_mu * 0.5
+    driver_amp = cfg.env.speed_scale * cfg.group1.speed_fwd_mu * 0.5
     hist["driver_wave"] = driver_amp * (np.sin(2.0 * np.pi * t / cfg.sim.day_duration) + 1.0)
     hist["driver_period"] = cfg.sim.day_duration
     # Recompute sine summary excluding the early transient (first quarter day) so visuals and summary align.
     time_axis = np.arange(1, sim_duration + 1, dtype=float)
-    valid_mask = time_axis >= (0.25 * cfg.sim.day_duration)
+    valid_mask = time_axis >= cfg.sim.day_duration  # Exclude first full day as burn-in
     g1_mean = hist["group_mean_speeds"]["group1"]
     g2_mean = hist["group_mean_speeds"]["group2"]
     hist["sine_summary"] = compute_sine_summary(
