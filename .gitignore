@@ -168,3 +168,7 @@ path_settings.py
 *.mat 
 *.png
 *mp4
+# Submission letters live outside the repo
+cover_letter*.md
+response_to_earlier_review.*
+rebuttal_letter*
