@@ -1,13 +1,13 @@
 # Fdb version 4
-["bibtex main_clean"] 1795380302.16949 "main_clean.aux" "main_clean.bbl" "main_clean" 1795439777.48437 0
+["bibtex main_clean"] 1795439961.06303 "main_clean.aux" "main_clean.bbl" "main_clean" 1795439964.40276 0
   "./references.bib" 1770561865.7126 67375 b6d5ef69843a4821e4e4aaae3522f130 ""
   "/opt/local/share/texmf-texlive/bibtex/bst/base/plain.bst" 1520403969 20613 bd3fbfa9f64872b81ac57a0dd2ed855f ""
-  "main_clean.aux" 1795439776.88218 43676 76c2d5219a198c84c09723e79a395bae "pdflatex"
+  "main_clean.aux" 1795439963.78273 43800 fedd2b05c8f34cf4ba14996bc371642b "pdflatex"
   (generated)
   "main_clean.bbl"
   "main_clean.blg"
   (rewritten before read)
-["pdflatex"] 1795439774.21627 "main_revised.tex" "main_clean.pdf" "main_clean" 1795439777.48466 0
+["pdflatex"] 1795439961.09452 "main_revised.tex" "main_clean.pdf" "main_clean" 1795439964.40306 0
   "/Users/tim/.texlive2025/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm0900.600pk" 1770565386.93037 10448 6a924e7de1c59fc05350c66c61760119 ""
   "/Users/tim/.texlive2025/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1000.600pk" 1770468254.82428 11524 a3dee514132a69cb5c6ccf6f4d27f2b9 ""
   "/Users/tim/Library/texlive/2022basic/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1766072929 428940 c53baa99274e6491234819c7016b968e ""
@@ -155,10 +155,10 @@
   "figure_s2.png" 1770561865.70911 423851 d6231356b89e7d10bc1d3933f1de98b9 ""
   "figure_s4.png" 1770561865.71013 172824 7293cc37087f65c0259e7a40b9baba71 ""
   "figure_s5.png" 1770561865.71141 290677 bd030c89f4fb7fcc61f0990f1b76e4b0 ""
-  "main_clean.aux" 1795439776.88218 43676 76c2d5219a198c84c09723e79a395bae "pdflatex"
-  "main_clean.bbl" 1795380302.19619 10531 fee580ff998c3366eb59c6ed06400638 "bibtex main_clean"
-  "main_clean.out" 1795439776.88566 8132 539762105039a1b35982a900dabfcdea "pdflatex"
-  "main_revised.tex" 1795439770.4113 106940 c5b601ea1e786e778ae563630cce9233 ""
+  "main_clean.aux" 1795439963.78273 43800 fedd2b05c8f34cf4ba14996bc371642b "pdflatex"
+  "main_clean.bbl" 1795439961.09148 10531 fee580ff998c3366eb59c6ed06400638 "bibtex main_clean"
+  "main_clean.out" 1795439963.78587 8303 d07ccba061e730dc098768be56e69cff "pdflatex"
+  "main_revised.tex" 1795439950.90274 107047 f4d3969a8c8decce1365762cd7ef63e2 ""
   "sensitivity_day_duration.pdf" 1770564952.28612 27280 89513da417f32f748f98d027dcb5b19e ""
   "sensitivity_decay.pdf" 1770564952.28709 26759 2c458f0fd8c7404b31e23cf493b5e132 ""
   "sensitivity_density.pdf" 1770564952.28497 26477 95d8696eef862b8423fe90b735fdda22 ""
